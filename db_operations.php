@@ -1,5 +1,5 @@
 <?php
-// Подключаем конфигурацию (где создаётся $pdo)
+// Подключаем конфигурацию
 include('config.php');
 
 // Проверка подключения
@@ -7,182 +7,56 @@ if (!$pdo) {
     die("Ошибка подключения к базе данных!");
 }
 
-/**
- * ФУНКЦИЯ: Добавить студента
- * 1) Добавляем запись в таблицу students
- * 2) Если пользователь отметил чекбокс "brsm", то добавляем запись в brsm и пишем её id в поле students.brsm
- */
-function addStudent($pdo, $name, $group_name, $brsmChecked, $volunteer, $achievements) {
-    // 1) Создаём запись в students
-    $sql = "INSERT INTO students (name, group_name, volunteer, achievements) 
-            VALUES (:name, :group_name, :volunteer, :achievements)";
-    $stmt = $pdo->prepare($sql);
-    $stmt->execute([
-        ':name'        => $name,
-        ':group_name'  => $group_name,
-        ':volunteer'   => $volunteer,
-        ':achievements'=> $achievements
-    ]);
-    
-    // Получаем id вставленного студента
-    $studentId = $pdo->lastInsertId();
-
-    // 2) Если чекбокс "brsm" установлен, создаём запись в brsm
-    if ($brsmChecked == 1) {
-        // Допустим, дату вступления берём текущую
-        $dateJoined = date('Y-m-d');
-        
-        // Добавляем запись в brsm
-        $insertBrsmSQL = "INSERT INTO brsm (student_id, date_joined) VALUES (:student_id, :date_joined)";
-        $stmtBrsm = $pdo->prepare($insertBrsmSQL);
-        $stmtBrsm->execute([
-            ':student_id' => $studentId,
-            ':date_joined' => $dateJoined
-        ]);
-        
-        // Получаем id записи в brsm
-        $brsmId = $pdo->lastInsertId();
-        
-        // Запишем brsmId в поле students.brsm
-        $updateStudentSQL = "UPDATE students SET brsm = :brsm_id WHERE id = :student_id";
-        $stmtUpd = $pdo->prepare($updateStudentSQL);
-        $stmtUpd->execute([
-            ':brsm_id'     => $brsmId,
-            ':student_id'  => $studentId
-        ]);
-    }
-}
-
-/**
- * ФУНКЦИЯ: Редактировать (обновить) студента
- * 1) Обновляем запись в students
- * 2) Если "brsm" = 1, то проверяем, есть ли запись в brsm. Если нет - создаём.
- *    Если "brsm" = 0, то удаляем запись из brsm и обнуляем поле students.brsm
- */
-function editStudent($pdo, $id, $name, $group_name, $brsmChecked, $volunteer, $achievements) {
-    // Сначала обновляем данные в students
-    $sql = "UPDATE students 
-            SET name = :name, group_name = :group_name, volunteer = :volunteer, achievements = :achievements
-            WHERE id = :id";
-    $stmt = $pdo->prepare($sql);
-    $stmt->execute([
-        ':name'         => $name,
-        ':group_name'   => $group_name,
-        ':volunteer'    => $volunteer,
-        ':achievements' => $achievements,
-        ':id'           => $id
-    ]);
-
-    // Далее логика по brsm
-    if ($brsmChecked == 1) {
-        // Проверим, есть ли уже запись в brsm
-        $checkSQL = "SELECT id FROM brsm WHERE student_id = :sid";
-        $stmtCheck = $pdo->prepare($checkSQL);
-        $stmtCheck->execute([':sid' => $id]);
-        $existing = $stmtCheck->fetch(PDO::FETCH_ASSOC);
-
-        if (!$existing) {
-            // Записи нет - значит создаём
-            $dateJoined = date('Y-m-d');
-            $insertBrsmSQL = "INSERT INTO brsm (student_id, date_joined) VALUES (:student_id, :date_joined)";
-            $stmtInsert = $pdo->prepare($insertBrsmSQL);
-            $stmtInsert->execute([
-                ':student_id' => $id,
-                ':date_joined' => $dateJoined
-            ]);
-            $brsmId = $pdo->lastInsertId();
-
-            // Обновим поле students.brsm
-            $updStud = $pdo->prepare("UPDATE students SET brsm = :brsmId WHERE id = :id");
-            $updStud->execute([
-                ':brsmId' => $brsmId,
-                ':id'     => $id
-            ]);
-        } else {
-            // Запись уже есть => ничего не делаем или можем обновить date_joined, если нужно
-            // $existing['id'] - это brsm.id
-            // Можно также проверить, что в поле students.brsm действительно записан $existing['id']
-            $updStud = $pdo->prepare("UPDATE students SET brsm = :brsmId WHERE id = :id");
-            $updStud->execute([
-                ':brsmId' => $existing['id'],
-                ':id'     => $id
-            ]);
-        }
-    } else {
-        // brsmChecked = 0 => удаляем запись из brsm, если есть
-        $deleteBrsmSQL = "DELETE FROM brsm WHERE student_id = :sid";
-        $stmtDel = $pdo->prepare($deleteBrsmSQL);
-        $stmtDel->execute([':sid' => $id]);
-
-        // Обнулим поле brsm в students
-        $updStud = $pdo->prepare("UPDATE students SET brsm = NULL WHERE id = :id");
-        $updStud->execute([':id' => $id]);
-    }
-}
-
-/**
- * ФУНКЦИЯ: Удалить студента
- * 1) Удаляем запись из brsm (если есть)
- * 2) Удаляем запись из students
- */
-function deleteStudent($pdo, $id) {
-    // Сначала удалим членство в brsm, если оно есть
-    $deleteBrsmSQL = "DELETE FROM brsm WHERE student_id = :sid";
-    $stmtBrsm = $pdo->prepare($deleteBrsmSQL);
-    $stmtBrsm->execute([':sid' => $id]);
-
-    // Удаляем студента
-    $sql = "DELETE FROM students WHERE id = :id";
-    $stmt = $pdo->prepare($sql);
-    $stmt->execute([':id' => $id]);
-}
-
-/**
- * ======================
- *        ЛОГИКА POST
- * ======================
- */
+// Добавление или редактирование студента
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
-    // Собираем данные из формы
-    $name        = $_POST['name'] ?? '';
-    $group_name  = $_POST['group_name'] ?? '';
-    $brsmChecked = isset($_POST['brsm']) ? 1 : 0;
-    $volunteer   = isset($_POST['volunteer']) ? 1 : 0;
-    $achievements= $_POST['achievement'] ?? '';
+    $name = $_POST['name'];
+    $group_name = $_POST['group_name'];
+    $brsm = isset($_POST['brsm']) ? 1 : 0;
+    $volunteer = isset($_POST['volunteer']) ? 1 : 0;
+    $achviment = $_POST['achievement']; // Исправлено название поля
 
-    // Добавление нового студента
     if (isset($_POST['add_student'])) {
-        addStudent($pdo, $name, $group_name, $brsmChecked, $volunteer, $achievements);
-        header("Location: students.php");
-        exit();
+        $sql = "INSERT INTO students (name, group_name, brsm, volunteer, achievements) 
+                VALUES (:name, :group_name, :brsm, :volunteer, :achievements)";
+    } elseif (isset($_POST['edit_student'])) {
+        $id = $_POST['id'];
+        $sql = "UPDATE students SET name = :name, group_name = :group_name, brsm = :brsm, 
+                volunteer = :volunteer, achievements = :achievements WHERE id = :id";
     }
 
-    // Редактирование существующего студента
-    if (isset($_POST['edit_student'])) {
-        $id = $_POST['id'];
-        editStudent($pdo, $id, $name, $group_name, $brsmChecked, $volunteer, $achievements);
+    try {
+        $stmt = $pdo->prepare($sql);
+        if (isset($_POST['edit_student'])) {
+            $stmt->bindParam(':id', $id);
+        }
+        $stmt->bindParam(':name', $name);
+        $stmt->bindParam(':group_name', $group_name);
+        $stmt->bindParam(':brsm', $brsm);
+        $stmt->bindParam(':volunteer', $volunteer);
+        $stmt->bindParam(':achievements', $achviment);  // Исправлено: привязка к правильному параметру
+        $stmt->execute();
+        
         header("Location: students.php");
         exit();
+    } catch (PDOException $e) {
+        echo "Ошибка: " . $e->getMessage();
     }
 }
 
-/**
- * ======================
- *       ЛОГИКА GET
- * ======================
- */
 // Удаление студента
 if (isset($_GET['delete_student'])) {
     $id = $_GET['delete_student'];
-    deleteStudent($pdo, $id);
-    header("Location: students.php");
-    exit();
+
+    try {
+        $stmt = $pdo->prepare("DELETE FROM students WHERE id = :id");
+        $stmt->bindParam(':id', $id);
+        $stmt->execute();
+        header("Location: students.php");
+        exit();
+    } catch (PDOException $e) {
+        echo "Ошибка удаления: " . $e->getMessage();
+    }
 }
-
-
-/**
- * ========  НИЖЕ – функции для регистрации/авторизации пользователей и управления группами ========
- */
 
 // Функция регистрации пользователя
 function registerUser($username, $email, $password, $secret_code) {
@@ -222,13 +96,72 @@ function authenticateUser($username, $password, $secret_code) {
 }
 
 
+
+
+
+
+// Удаление члена БРСМ
+if (isset($_GET['remove_brsm'])) {
+    try {
+        $brsm_id = filter_var($_GET['remove_brsm'], FILTER_VALIDATE_INT);
+        
+        if (!$brsm_id) {
+            throw new Exception("Некорректный ID записи");
+        }
+
+        // Начинаем транзакцию
+        $pdo->beginTransaction();
+
+        // Получаем student_id перед удалением записи
+        $getStudentSql = "SELECT student_id FROM brsm WHERE id = ?";
+        $getStudentStmt = $pdo->prepare($getStudentSql);
+        $getStudentStmt->execute([$brsm_id]);
+        $student = $getStudentStmt->fetch(PDO::FETCH_ASSOC);
+
+        if ($student) {
+            // Удаляем запись из таблицы БРСМ
+            $deleteSql = "DELETE FROM brsm WHERE id = ?";
+            $deleteStmt = $pdo->prepare($deleteSql);
+            $deleteStmt->execute([$brsm_id]);
+
+            // Обновляем статус в таблице students
+            $updateSql = "UPDATE students SET brsm = 0 WHERE id = ?";
+            $updateStmt = $pdo->prepare($updateSql);
+            $updateStmt->execute([$student['student_id']]);
+
+            // Подтверждаем транзакцию
+            $pdo->commit();
+            $_SESSION['success'] = "Член БРСМ успешно исключен";
+        } else {
+            throw new Exception("Запись не найдена");
+        }
+
+    } catch (Exception $e) {
+        // Если произошла ошибка, отменяем все изменения
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        $_SESSION['error'] = "Ошибка при исключении: " . $e->getMessage();
+    }
+
+    // Всегда перенаправляем обратно на страницу БРСМ
+    header("Location: brsm.php");
+    exit();
+}
+
+
+
+
+
 // Добавление группы
 if (isset($_POST['add_group'])) {
     $group_name = $_POST['group_name'];
     $curator = $_POST['curator'];
     $count_students = $_POST['count_students'];
 
+    // Проверка на пустые значения
     if (!empty($group_name) && !empty($curator) && !empty($count_students)) {
+        // Вставка новой группы
         $sql = "INSERT INTO `groups` (group_name, curator, count_students) VALUES (?, ?, ?)";
         $stmt = $pdo->prepare($sql);
         $stmt->execute([$group_name, $curator, $count_students]);
@@ -248,7 +181,9 @@ if (isset($_POST['edit_group'])) {
     $curator = $_POST['curator'];
     $count_students = $_POST['count_students'];
 
+    // Проверка, чтобы все поля были заполнены
     if (!empty($id_group) && !empty($group_name) && !empty($curator) && !empty($count_students)) {
+        // Обновление данных о группе
         $sql = "UPDATE `groups` SET group_name = ?, curator = ?, count_students = ? WHERE id_group = ?";
         $stmt = $pdo->prepare($sql);
         $stmt->execute([$group_name, $curator, $count_students, $id_group]);
@@ -264,6 +199,7 @@ if (isset($_GET['delete_group'])) {
     $id_group = $_GET['delete_group'];
 
     if (!empty($id_group)) {
+        // Удаление группы
         $sql = "DELETE FROM `groups` WHERE id_group = ?";
         $stmt = $pdo->prepare($sql);
         $stmt->execute([$id_group]);
@@ -271,3 +207,29 @@ if (isset($_GET['delete_group'])) {
     header('Location: groups.php');
     exit();
 }
+// Удаление достижения
+if (isset($_GET['delete_achievement'])) {
+    $achievement_id = $_GET['delete_achievement'];
+
+    try {
+        $stmt = $pdo->prepare("DELETE FROM achievements WHERE id = :id");
+        $stmt->bindParam(':id', $achievement_id);
+        $stmt->execute();
+        
+        // Для AJAX-запросов
+        if (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && $_SERVER['HTTP_X_REQUESTED_WITH'] === 'XMLHttpRequest') {
+            echo json_encode(['success' => true]);
+            exit;
+        }
+        
+        header("Location: achievements.php");
+        exit();
+    } catch (PDOException $e) {
+        if (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && $_SERVER['HTTP_X_REQUESTED_WITH'] === 'XMLHttpRequest') {
+            echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+            exit;
+        }
+        echo "Ошибка удаления: " . $e->getMessage();
+    }
+}
+?>

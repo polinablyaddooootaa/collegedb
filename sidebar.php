@@ -32,7 +32,7 @@
             <a href="curators.php" class="nav-item">
                 <i class='bx bx-user-check'></i> Кураторы
             </a>
-            <a href="#" class="nav-item">
+            <a href="volunteers.php" class="nav-item">
                 <i class='bx bx-heart'></i> Волонтеры
             </a>
             <a href="brsm.php" class="nav-item">

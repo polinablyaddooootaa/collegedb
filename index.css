@@ -98,7 +98,11 @@ body {
     border-radius: 0.5rem;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
-
+h3{
+    margin-top: 40px;
+    margin-bottom: 40px;
+    font-size: 30px;
+}
 .date-container i {
     color: #999;
 }
@@ -179,7 +183,9 @@ body {
 .table-container {
     background: #fff;
     border-radius: 1rem;
-    padding: 1.5rem;
+    padding-left: 1.5rem;
+    padding-right: 1.5rem;
+    padding-bottom: 1.5rem;
     box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
     width: 100%;
     overflow-x: auto;

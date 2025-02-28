@@ -2,8 +2,155 @@
 // Подключаем конфигурацию
 include('config.php');
 
-// Получаем список студентов из базы
-$sql = "SELECT * FROM students";
+if ($_SERVER["REQUEST_METHOD"] == "POST") {
+    $name = $_POST['name'];
+    $group_name = $_POST['group_name'];
+    $brsm = isset($_POST['brsm']) ? 1 : 0;
+    $volunteer = isset($_POST['volunteer']) ? 1 : 0;
+    $achievements = $_POST['achievement'] ?? '';
+
+    try {
+        // Начинаем транзакцию
+        $pdo->beginTransaction();
+
+        if (isset($_POST['add_student'])) {
+            // Добавление нового студента
+            $sql = "INSERT INTO students (name, group_name, volunteer, achievements) 
+                    VALUES (:name, :group_name, :volunteer, :achievements)";
+            $stmt = $pdo->prepare($sql);
+            $stmt->execute([
+                ':name' => $name,
+                ':group_name' => $group_name,
+                ':volunteer' => $volunteer,
+                ':achievements' => $achievements
+            ]);
+
+            $student_id = $pdo->lastInsertId();
+
+            // Если отмечен как член БРСМ
+            if ($brsm) {
+                $sqlBrsm = "INSERT INTO brsm (student_id, date_joined) VALUES (:student_id, NOW())";
+                $stmtBrsm = $pdo->prepare($sqlBrsm);
+                $stmtBrsm->execute([':student_id' => $student_id]);
+            }
+
+            // Если отмечен как волонтер
+            if ($volunteer) {
+                $sqlVolunteer = "INSERT INTO volunteers (student_id, date_joined, activity_type, hours_volunteered) 
+                                VALUES (:student_id, NOW(), 'Новый волонтер', 0)";
+                $stmtVolunteer = $pdo->prepare($sqlVolunteer);
+                $stmtVolunteer->execute([':student_id' => $student_id]);
+            }
+
+        } elseif (isset($_POST['edit_student'])) {
+            // Редактирование существующего студента
+            $id = $_POST['id'];
+            
+            // Обновляем основную информацию студента
+            $sql = "UPDATE students SET 
+                    name = :name, 
+                    group_name = :group_name, 
+                    volunteer = :volunteer, 
+                    achievements = :achievements 
+                    WHERE id = :id";
+            
+            $stmt = $pdo->prepare($sql);
+            $stmt->execute([
+                ':name' => $name,
+                ':group_name' => $group_name,
+                ':volunteer' => $volunteer,
+                ':achievements' => $achievements,
+                ':id' => $id
+            ]);
+
+            // Обработка БРСМ статуса
+            if ($brsm) {
+                $sqlBrsm = "INSERT INTO brsm (student_id, date_joined) 
+                           VALUES (:student_id, NOW()) 
+                           ON DUPLICATE KEY UPDATE date_joined = date_joined";
+                $stmtBrsm = $pdo->prepare($sqlBrsm);
+                $stmtBrsm->execute([':student_id' => $id]);
+            } else {
+                $sqlBrsm = "DELETE FROM brsm WHERE student_id = :student_id";
+                $stmtBrsm = $pdo->prepare($sqlBrsm);
+                $stmtBrsm->execute([':student_id' => $id]);
+            }
+
+            // Обработка статуса волонтера
+            if ($volunteer) {
+                // Проверяем, существует ли уже запись
+                $sqlCheckVolunteer = "SELECT COUNT(*) FROM volunteers WHERE student_id = :student_id";
+                $stmtCheck = $pdo->prepare($sqlCheckVolunteer);
+                $stmtCheck->execute([':student_id' => $id]);
+                $volunteerExists = $stmtCheck->fetchColumn();
+
+                if (!$volunteerExists) {
+                    // Если записи нет, создаем новую
+                    $sqlVolunteer = "INSERT INTO volunteers (student_id, date_joined, activity_type, hours_volunteered) 
+                                    VALUES (:student_id, NOW(), 'Новый волонтер', 0)";
+                    $stmtVolunteer = $pdo->prepare($sqlVolunteer);
+                    $stmtVolunteer->execute([':student_id' => $id]);
+                }
+            } else {
+                // Если чекбокс не отмечен, удаляем запись из volunteers
+                $sqlVolunteer = "DELETE FROM volunteers WHERE student_id = :student_id";
+                $stmtVolunteer = $pdo->prepare($sqlVolunteer);
+                $stmtVolunteer->execute([':student_id' => $id]);
+            }
+        }
+
+        // Подтверждаем транзакцию
+        $pdo->commit();
+        
+        header("Location: students.php");
+        exit();
+    } catch (PDOException $e) {
+        // Откатываем транзакцию в случае ошибки
+        $pdo->rollBack();
+        echo "Ошибка: " . $e->getMessage();
+    }
+}
+
+// Получение списка студентов с информацией о БРСМ и волонтерстве
+$sql = "SELECT 
+            s.*, 
+            IF(b.student_id IS NOT NULL, 'Состоит', 'Не состоит') AS brsm_status,
+            IF(v.student_id IS NOT NULL, 'Активен', 'Не участвует') AS volunteer_status,
+            v.hours_volunteered,
+            v.activity_type
+        FROM students s
+        LEFT JOIN brsm b ON s.id = b.student_id
+        LEFT JOIN volunteers v ON s.id = v.student_id";
+
+$stmt = $pdo->prepare($sql);
+$stmt->execute();
+$students = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+// Удаление студента
+if (isset($_GET['delete_student'])) {
+    $id = $_GET['delete_student'];
+
+    try {
+        $stmt = $pdo->prepare("DELETE FROM students WHERE id = :id");
+        $stmt->bindParam(':id', $id);
+        $stmt->execute();
+
+        // Удаляем запись из таблицы brsm, если студент удален
+        $stmtBrsm = $pdo->prepare("DELETE FROM brsm WHERE student_id = :id");
+        $stmtBrsm->bindParam(':id', $id);
+        $stmtBrsm->execute();
+
+        header("Location: students.php");
+        exit();
+    } catch (PDOException $e) {
+        echo "Ошибка удаления: " . $e->getMessage();
+    }
+}
+
+// Получаем список студентов из базы и проверяем их статус в БРСМ
+$sql = "SELECT students.*, IF(brsm.student_id IS NOT NULL, 'Состоит', 'Не состоит') AS brsm_status
+        FROM students
+        LEFT JOIN brsm ON students.id = brsm.student_id";
 $stmt = $pdo->prepare($sql);
 $stmt->execute();
 $students = $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -17,13 +164,12 @@ $students = $stmt->fetchAll(PDO::FETCH_ASSOC);
     <title>Студенты</title>
 
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/boxicons@2.1.4/css/boxicons.min.css">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0-alpha1/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0-alpha1/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.7.0/chart.min.js"></script>
     <link rel="stylesheet" href="index.css"> <!-- Подключение стилей -->
     <style>
         body, html {
-         
             margin: 0;
             font-family: 'Inter', sans-serif;
             background-color: #f4f7fc;
@@ -32,7 +178,6 @@ $students = $stmt->fetchAll(PDO::FETCH_ASSOC);
             display: flex;
             height: 100vh;
         }
-     
         /* Стили для основного контента */
         .content {
             margin-left: 260px;
@@ -40,7 +185,6 @@ $students = $stmt->fetchAll(PDO::FETCH_ASSOC);
             padding: 20px;
             overflow-y: auto;
         }
-        
         .top-header {
             display: flex;
             justify-content: space-between;
@@ -100,7 +244,6 @@ $students = $stmt->fetchAll(PDO::FETCH_ASSOC);
             border: none;
             color: white;
         }
-
         .btn-add:hover {
             background: linear-gradient(135deg, #fda085 0%, #f6d365 100%);
         }
@@ -108,9 +251,7 @@ $students = $stmt->fetchAll(PDO::FETCH_ASSOC);
 </head>
 <body>
 
-
     <?php include('sidebar.php'); ?>  <!-- Подключение бокового меню -->
-     
 
     <!-- Основной контент -->
     <div class="content">
@@ -147,8 +288,8 @@ $students = $stmt->fetchAll(PDO::FETCH_ASSOC);
                         <td><?= htmlspecialchars($student['id']) ?></td>
                         <td><?= htmlspecialchars($student['name']) ?></td>
                         <td><?= htmlspecialchars($student['group_name']) ?></td>
-                        <td><span class="status-badge <?= $student['brsm'] ? 'status-yes' : 'status-no' ?>">
-                            <?= $student['brsm'] ? 'Да' : 'Нет' ?>
+                        <td><span class="status-badge <?= $student['brsm_status'] == 'Состоит' ? 'status-yes' : 'status-no' ?>">
+                            <?= htmlspecialchars($student['brsm_status']) ?>
                         </span></td>
                         <td><span class="status-badge <?= $student['volunteer'] ? 'status-yes' : 'status-neutral' ?>">
                             <?= $student['volunteer'] ? 'Активен' : 'Не участвует' ?>
@@ -156,10 +297,10 @@ $students = $stmt->fetchAll(PDO::FETCH_ASSOC);
                         <td>
                             <button class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#editStudentModal" 
                                     onclick="fillEditForm('<?= $student['id'] ?>', '<?= $student['name'] ?>', '<?= $student['group_name'] ?>', 
-                                    <?= $student['brsm'] ?>, <?= $student['volunteer'] ?>)">
+                                    <?= $student['brsm_status'] == 'Состоит' ?>, <?= $student['volunteer'] ?>)">
                                 <i class="bi bi-pencil"></i>
                             </button>
-                            <a class="btn btn-outline-danger btn-sm" href="db_operations.php?delete_student=<?= $student['id'] ?>" 
+                            <a class="btn btn-outline-danger btn-sm" href="students.php?delete_student=<?= $student['id'] ?>" 
                                onclick="return confirm('Вы уверены, что хотите удалить?')">
                                 <i class="bi bi-trash"></i>
                             </a>
@@ -183,7 +324,7 @@ $students = $stmt->fetchAll(PDO::FETCH_ASSOC);
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
-                <form method="POST" action="db_operations.php">
+                <form method="POST" action="students.php">
                     <input type="hidden" name="add_student" value="1">
                     <div class="mb-3">
                         <label class="form-label">ФИО</label>
@@ -217,7 +358,7 @@ $students = $stmt->fetchAll(PDO::FETCH_ASSOC);
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
-                <form method="POST" action="db_operations.php">
+                <form method="POST" action="students.php">
                     <input type="hidden" name="edit_student" value="1">
                     <input type="hidden" id="edit_id" name="id">
                     <div class="mb-3">
