@@ -1,7 +1,7 @@
 <?php
 // Подключаем конфигурацию
 include('config.php');
-
+session_start();
 // Получаем список студентов и их достижения, сгруппированные по категориям
 $sql = "SELECT students.id, students.name,
         GROUP_CONCAT(CASE WHEN achievement_type = 'Достижения в общественной жизни' THEN achievement END) AS public_achievements,
@@ -31,6 +31,7 @@ $students = $stmt->fetchAll(PDO::FETCH_ASSOC);
     <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0-alpha1/css/bootstrap.min.css" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0-alpha1/js/bootstrap.bundle.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/boxicons@2.1.4/css/boxicons.min.css">
     <link rel="stylesheet" href="index.css">
     <style>
         body, html { margin: 0; font-family: 'Inter', sans-serif; background-color: #f4f7fc; }
@@ -40,9 +41,10 @@ $students = $stmt->fetchAll(PDO::FETCH_ASSOC);
         .date-container { display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 1rem; background-color: white; border-radius: 0.75rem; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1); }
         .date-text, .time-text { color: #64748b; }
         .form-container { background-color: white; border-radius: 10px; padding: 20px; box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.1); }
-        .btn-generate { font-size: 1rem; padding: 0.5rem 1.5rem; background: linear-gradient(135deg, #f6d365 0%, #fda085 100%); border: none; color: white; }
-        .btn-generate:hover { background: linear-gradient(135deg, #fda085 0%, #f6d365 100%); }
+        .btn-generate { font-size: 1rem; padding: 0.5rem 1.5rem;  background: linear-gradient(135deg, #4946e5 0%, #636ff1 100%); border: none; color: white; }
+         
     </style>
+       <link rel="icon" href="logo2.png" type="image/png">
 </head>
 <body>
 
@@ -50,11 +52,18 @@ $students = $stmt->fetchAll(PDO::FETCH_ASSOC);
     
     <div class="content">
         <header class="top-header">
+        <div class="user-info">
+                    <i class='bx bx-user'></i>
+                    <span><?php echo htmlspecialchars($_SESSION['username']); ?></span> <!-- Имя пользователя из сессии -->
+                </div>
             <div class="date-container">
                 <i class="bx bx-calendar"></i>
                 <span class="date-text"><?php echo date('m/d/Y'); ?></span>
                 <span class="time-text"><?php echo date('H:i'); ?></span>
             </div>
+            <div class="search-container">
+                    <input type="text" class="search-bar" placeholder="Поиск по достижениям...">
+                </div>
         </header>
 
         <div class="form-container mb-5">
@@ -127,12 +136,12 @@ $students = $stmt->fetchAll(PDO::FETCH_ASSOC);
                     doc.setData({
                         first_name: student.name,
                         issue_date: formattedDate, // Новый тег для даты выдачи
-                        public_achievements: student.public_achievements || 'Нет достижений',
-                        sports_achievements: student.sports_achievements || 'Нет достижений',
-                        creative_achievements: student.creative_achievements || 'Нет достижений',
-                        research_achievements: student.research_achievements || 'Нет достижений',
-                        another_achievements: student.another_achievements || 'Нет достижений',
-                        master_achievements: student.master_achievements || 'Нет достижений'
+                        public_achievements: student.public_achievements || '',
+                        sports_achievements: student.sports_achievements || '',
+                        creative_achievements: student.creative_achievements || '',
+                        research_achievements: student.research_achievements || '',
+                        another_achievements: student.another_achievements || '',
+                        master_achievements: student.master_achievements || ''
                     });
 
                     try {
@@ -177,12 +186,12 @@ $students = $stmt->fetchAll(PDO::FETCH_ASSOC);
                         doc.setData({
                             first_name: student.name,
                             issue_date: formattedDate, // Новый тег для даты выдачи
-                            public_achievements: student.public_achievements || 'Нет достижений',
-                            sports_achievements: student.sports_achievements || 'Нет достижений',
-                            creative_achievements: student.creative_achievements || 'Нет достижений',
-                            research_achievements: student.research_achievements || 'Нет достижений',
-                            another_achievements: student.another_achievements || 'Нет достижений',
-                            master_achievements: student.master_achievements || 'Нет достижений'
+                            public_achievements: student.public_achievements || '',
+                            sports_achievements: student.sports_achievements || '',
+                            creative_achievements: student.creative_achievements || '',
+                            research_achievements: student.research_achievements || '',
+                            another_achievements: student.another_achievements || '',
+                            master_achievements: student.master_achievements || ''
                         });
 
                         try {

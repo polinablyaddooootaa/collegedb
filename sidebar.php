@@ -1,4 +1,3 @@
-<?php session_start(); ?>
 <!DOCTYPE html>
 <html lang="ru">
 <head>
@@ -11,44 +10,37 @@
     <link rel="stylesheet" href="index.css"> <!-- Подключение стилей -->
 </head>
 <body>
-    <aside class="sidebar">
-        <div class="logo">
-            <i class='bx bxs-dashboard bx-lg'></i>
-            <h3>КБиП</h3>
-        </div>
-        <nav class="nav-menu">
-            <a href="index.php" class="nav-item active">
-                <i class='bx bx-home-alt'></i> Главная
-            </a>
-            <a href="students.php" class="nav-item">
-                <i class='bx bx-user'></i> Учащиеся
-            </a>
-            <a href="otchet.php" class="nav-item">
-                <i class='bx bx-group'></i> Создание сертификатов
-            </a>
-            <a href="groups.php" class="nav-item">
-                <i class='bx bx-group'></i> Группы
-            </a>
-            <a href="curators.php" class="nav-item">
-                <i class='bx bx-user-check'></i> Кураторы
-            </a>
-            <a href="volunteers.php" class="nav-item">
-                <i class='bx bx-heart'></i> Волонтеры
-            </a>
-            <a href="brsm.php" class="nav-item">
-                <i class='bx bx-flag'></i> БРСМ
-            </a>
-            <a href="achievements.php" class="nav-item">
-                <i class='bx bx-trophy'></i> Достижения
-            </a>
+<aside class="sidebar">
+    <div class="logo">
+        <img src="logo1.png" alt="Logo 1">
+    </div>
+    <nav class="nav-menu">
+        <a href="index.php" class="nav-item <?php echo (basename($_SERVER['PHP_SELF']) == 'index.php') ? 'active' : ''; ?>">
+            <i class='bx bx-home-alt'></i> Главная
+        </a>
+        <a href="students.php" class="nav-item <?php echo (basename($_SERVER['PHP_SELF']) == 'students.php') ? 'active' : ''; ?>">
+            <i class='bx bx-user'></i> Учащиеся
+        </a>
+        <a href="otchet.php" class="nav-item <?php echo (basename($_SERVER['PHP_SELF']) == 'otchet.php') ? 'active' : ''; ?>">
+            <i class='bx bx-group'></i> Создание сертификатов
+        </a>
+        <a href="volunteers.php" class="nav-item <?php echo (basename($_SERVER['PHP_SELF']) == 'volunteers.php') ? 'active' : ''; ?>">
+            <i class='bx bx-heart'></i> Волонтеры
+        </a>
+        <a href="brsm.php" class="nav-item <?php echo (basename($_SERVER['PHP_SELF']) == 'brsm.php') ? 'active' : ''; ?>">
+            <i class='bx bx-flag'></i> БРСМ
+        </a>
+        <a href="achievements.php" class="nav-item <?php echo (basename($_SERVER['PHP_SELF']) == 'achievements.php') ? 'active' : ''; ?>">
+            <i class='bx bx-trophy'></i> Достижения
+        </a>
 
-            <?php if (isset($_SESSION['user_id'])): ?>
-                <!-- Кнопка выхода -->
-                <a href="logout.php" class="nav-item">
-                    <i class='bx bx-log-out'></i> Выйти
-                </a>
-            <?php endif; ?>
-        </nav>
-    </aside>
+        <?php if (isset($_SESSION['user_id'])): ?>
+            <!-- Кнопка выхода -->
+            <a href="logout.php" class="nav-item <?php echo (basename($_SERVER['PHP_SELF']) == 'logout.php') ? 'active' : ''; ?>">
+                <i class='bx bx-log-out'></i> Выйти
+            </a>
+        <?php endif; ?>
+    </nav>
+</aside>
 </body>
 </html>

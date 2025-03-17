@@ -1,5 +1,21 @@
 <?php
 include('config.php');
+include('functions.php');
+session_start(); // Начинаем сессию
+// После session_start()
+if (!function_exists('setNotification')) {
+    function setNotification($message, $type = 'success') {
+        $_SESSION['notification'] = [
+            'message' => $message,
+            'type' => $type
+        ];
+    }
+}
+// Проверка на авторизованного пользователя
+if (!isset($_SESSION['username'])) {
+    header("Location: login.php"); // Перенаправляем на страницу входа, если пользователь не авторизован
+    exit();
+}
 
 $sql = "CREATE TABLE IF NOT EXISTS achievements (
     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -27,6 +43,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $achievement_type = $_POST['achievement_type'];
 
         try {
+            // Получаем имя студента для уведомления
+            $stmt = $pdo->prepare("SELECT name FROM students WHERE id = ?");
+            $stmt->execute([$student_id]);
+            $student_name = $stmt->fetchColumn();
+
             $updateQuery = "UPDATE achievements SET 
                            student_id = ?, 
                            achievement_date = ?, 
@@ -35,10 +56,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                            WHERE id = ?";
             $stmt = $pdo->prepare($updateQuery);
             $stmt->execute([$student_id, $achievement_date, $achievement, $achievement_type, $id]);
+            
+            setNotification("Достижение студента \"$student_name\" успешно обновлено", 'success');
+            addAction($pdo, $_SESSION['user_id'], "Добавлено достижение для студента \"$student_name\"");
             header("Location: achievements.php");
             exit;
         } catch (PDOException $e) {
-            echo "Error: " . $e->getMessage();
+            setNotification("Ошибка при обновлении достижения: " . $e->getMessage(), 'error');
+            header("Location: achievements.php");
+            exit;
         }
     } else {
         // Обработка добавления
@@ -48,14 +74,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $achievement_type = $_POST['achievement_type'];
 
         try {
+            // Получаем имя студента для уведомления
+            $stmt = $pdo->prepare("SELECT name FROM students WHERE id = ?");
+            $stmt->execute([$student_id]);
+            $student_name = $stmt->fetchColumn();
+
             $insertQuery = "INSERT INTO achievements (student_id, achievement_date, achievement, achievement_type) 
                            VALUES (?, ?, ?, ?)";
             $stmt = $pdo->prepare($insertQuery);
             $stmt->execute([$student_id, $achievement_date, $achievement, $achievement_type]);
+            
+            setNotification("Достижение для студента \"$student_name\" успешно добавлено", 'success');
             header("Location: achievements.php");
             exit;
         } catch (PDOException $e) {
-            echo "Error: " . $e->getMessage();
+            setNotification("Ошибка при добавлении достижения: " . $e->getMessage(), 'error');
+            header("Location: achievements.php");
+            exit;
         }
     }
 }
@@ -93,6 +128,7 @@ $achievements = $stmt->fetchAll(PDO::FETCH_ASSOC);
     <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0-alpha1/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.7.0/chart.min.js"></script>
     <link rel="stylesheet" href="index.css">
+    <link rel="icon" href="logo2.png" type="image/png">
     
     <style>
         body, html {
@@ -115,7 +151,61 @@ $achievements = $stmt->fetchAll(PDO::FETCH_ASSOC);
             display: flex;
             flex-direction: column;
         }
+/* Стили для уведомлений */
+.notification {
+    position: fixed;
+    bottom: 20px;
+    left: 20px;
+    background-color: white;
+    border-radius: 10px;
+    padding: 15px;
+    min-width: 300px;
+    display: flex;
+    align-items: center;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    transform: translateY(100px);
+    opacity: 0;
+    transition: all 0.5s ease;
+    z-index: 1050;
+}
 
+.notification.show {
+    transform: translateY(0);
+    opacity: 1;
+}
+
+.notification-success {
+    border-left: 4px solid #28a745;
+}
+
+.notification-error {
+    border-left: 4px solid #dc3545;
+}
+
+.notification-info {
+    border-left: 4px solid #17a2b8;
+}
+
+.notification-icon {
+    margin-right: 15px;
+    font-size: 1.5rem;
+}
+
+.notification-success .notification-icon {
+    color: #28a745;
+}
+
+.notification-error .notification-icon {
+    color: #dc3545;
+}
+
+.notification-info .notification-icon {
+    color: #17a2b8;
+}
+
+.notification-message {
+    font-size: 14px;
+}
         .fixed-header {
             position: sticky;
             top: 0;
@@ -340,7 +430,7 @@ $achievements = $stmt->fetchAll(PDO::FETCH_ASSOC);
             <header class="top-header">
                 <div class="user-info">
                     <i class='bx bx-user'></i>
-                    <span><?php echo htmlspecialchars('polinablyaddooootaa'); ?></span>
+                    <span><?php echo htmlspecialchars($_SESSION['username']); ?></span> <!-- Имя пользователя из сессии -->
                 </div>
                 <div class="date-container">
                     <i class='bx bx-calendar'></i>
@@ -462,56 +552,8 @@ $achievements = $stmt->fetchAll(PDO::FETCH_ASSOC);
                                 <option value="Достижения в конкурсах профессионального мастерства и технического творчества">Достижения в конкурсах профессионального мастерства</option>
                                 <option value="Другие достижения">Другие достижения</option>
                             </select>
-                        </div>
-                        <div class="mb-3">
-                            <label for="achievement" class="form-label">Достижение</label>
-                            <textarea class="form-control" id="achievement" name="achievement" rows="3" required></textarea>
-                        </div>
-                        <div class="text-end">
-                            <button type="button" class="btn btn-secondary me-2" data-bs-dismiss="modal">Отмена</button>
-                            <button type="submit" class="btn btn-add">Сохранить</button>
-                        </div>
-                    </form>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Модальное окно редактирования -->
-    <div class="modal fade" id="editAchievementModal" tabindex="-1" aria-labelledby="editAchievementModalLabel" aria-hidden="true">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="editAchievementModalLabel">Редактировать достижение</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
-                    <form method="POST" action="achievements.php">
-                        <input type="hidden" name="edit_achievement" value="1">
-                        <input type="hidden" name="achievement_id" id="edit_achievement_id">
-                        <div class="mb-3">
-                            <label for="edit_student_id" class="form-label">Студент</label>
-                            <select class="form-select" id="edit_student_id" name="student_id" required>
-                                <?php foreach ($students as $student): ?>
-                                    <option value="<?= $student['id'] ?>"><?= htmlspecialchars($student['name']) ?></option>
-                                <?php endforeach; ?>
-                            </select>
-                        </div>
-                        <div class="mb-3">
-                            <label for="edit_achievement_date" class="form-label">Дата</label>
-                            <input type="date" class="form-control" id="edit_achievement_date" name="achievement_date" required>
-                        </div>
-                        <div class="mb-3">
-                            <label for="edit_achievement_type" class="form-label">Тип достижения</label>
-                            <select class="form-select" id="edit_achievement_type" name="achievement_type" required>
-                                <option value="Достижения в общественной жизни">Достижения в общественной жизни</option>
-                                <option value="Достижения в спорте">Достижения в спорте</option>
-                                <option value="Достижения в творческой деятельности">Достижения в творческой деятельности</option>
-                                <option value="Достижения в исследовательской деятельности">Достижения в исследовательской деятельности</option>
-                                <option value="Достижения в конкурсах профессионального мастерства и технического творчества">Достижения в конкурсах профессионального мастерства</option>
-                                <option value="Другие достижения">Другие достижения</option>
-                            </select>
-                        </div>
+                                </div>
+                              
                         <div class="mb-3">
                             <label for="edit_achievement" class="form-label">Достижение</label>
                             <textarea class="form-control" id="edit_achievement" name="achievement" rows="3" required></textarea>
@@ -527,6 +569,45 @@ $achievements = $stmt->fetchAll(PDO::FETCH_ASSOC);
     </div>
 
     <script>
+        // Функция для отображения уведомлений
+function showNotification(message, type = 'success') {
+    const notification = document.createElement('div');
+    notification.className = `notification notification-${type}`;
+    notification.innerHTML = `
+        <div class="notification-icon">
+            ${type === 'success' ? '<i class="bx bx-check"></i>' : 
+             type === 'error' ? '<i class="bx bx-x"></i>' : 
+             '<i class="bx bx-info-circle"></i>'}
+        </div>
+        <div class="notification-message">${message}</div>
+    `;
+    
+    document.body.appendChild(notification);
+    
+    setTimeout(() => {
+        notification.classList.add('show');
+    }, 10);
+    
+    setTimeout(() => {
+        notification.classList.remove('show');
+        setTimeout(() => {
+            notification.remove();
+        }, 500);
+    }, 5000);
+}
+
+<?php
+// Проверяем, есть ли уведомление в сессии
+if (isset($_SESSION['notification'])) {
+    $notification = $_SESSION['notification'];
+    echo "document.addEventListener('DOMContentLoaded', function() {
+        showNotification('" . addslashes($notification['message']) . "', '" . $notification['type'] . "');
+    });";
+    
+    // Удаляем уведомление из сессии после отображения
+    unset($_SESSION['notification']);
+}
+?>
         // Функция для заполнения формы редактирования
         function fillEditForm(data) {
             document.getElementById('edit_achievement_id').value = data.id;

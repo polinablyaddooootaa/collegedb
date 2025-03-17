@@ -1,6 +1,20 @@
 <?php
 // Подключаем конфигурацию
 include('config.php');
+include('functions.php');
+
+// Запускаем сессию если еще не запущена
+if (session_status() == PHP_SESSION_NONE) {
+    session_start();
+}
+
+// Функция для установки сообщения уведомления
+function setNotification($message, $type = 'success') {
+    $_SESSION['notification'] = [
+        'message' => $message,
+        'type' => $type
+    ];
+}
 
 // Получаем список студентов для выпадающего списка
 $sql_students = "SELECT id, name FROM students";
@@ -26,6 +40,9 @@ if (isset($_POST['add_member'])) {
     $stmt = $pdo->prepare($sql);
     $stmt->execute([$student_id, $date_joined]);
 
+    // Устанавливаем уведомление
+    setNotification('Участник БРСМ успешно добавлен', 'success');
+
     header("Location: brsm.php"); // Перенаправляем обратно на страницу после добавления
     exit;
 }
@@ -40,6 +57,9 @@ if (isset($_POST['edit_member'])) {
     $stmt = $pdo->prepare($sql);
     $stmt->execute([$student_id, $date_joined, $id]);
 
+    // Устанавливаем уведомление
+    setNotification('Информация об участнике БРСМ успешно обновлена', 'success');
+
     header("Location: brsm.php"); // Перенаправляем обратно на страницу после обновления
     exit;
 }
@@ -51,6 +71,9 @@ if (isset($_GET['delete_member'])) {
     $sql = "DELETE FROM brsm WHERE id = ?";
     $stmt = $pdo->prepare($sql);
     $stmt->execute([$id]);
+
+    // Устанавливаем уведомление
+    setNotification('Участник БРСМ успешно удален', 'info');
 
     header("Location: brsm.php"); // Перенаправляем обратно на страницу после удаления
     exit;
@@ -68,6 +91,7 @@ if (isset($_GET['delete_member'])) {
     <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0-alpha1/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.7.0/chart.min.js"></script>
     <link rel="stylesheet" href="index.css"> <!-- Подключение стилей -->
+    <link rel="icon" href="logo2.png" type="image/png">
     <style>
         body, html {
             margin: 0;
@@ -103,6 +127,71 @@ if (isset($_GET['delete_member'])) {
             background-color: #f1f3f9;
             text-transform: uppercase;
         }
+        .btn-add {
+            font-size: 1rem;
+            padding: 0.5rem 1.5rem;
+            background: linear-gradient(135deg, #4946e5 0%, #636ff1 100%);
+            border: none;
+            border-radius: 15px;
+            margin-bottom: 20px;
+            color: white;
+        }
+        
+        /* Стили для уведомлений */
+        .notification {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            background-color: white;
+            border-radius: 10px;
+            padding: 15px;
+            min-width: 300px;
+            display: flex;
+            align-items: center;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            transform: translateY(100px);
+            opacity: 0;
+            transition: all 0.5s ease;
+            z-index: 1050;
+        }
+
+        .notification.show {
+            transform: translateY(0);
+            opacity: 1;
+        }
+
+        .notification-success {
+            border-left: 4px solid #28a745;
+        }
+
+        .notification-error {
+            border-left: 4px solid #dc3545;
+        }
+
+        .notification-info {
+            border-left: 4px solid #17a2b8;
+        }
+
+        .notification-icon {
+            margin-right: 15px;
+            font-size: 1.5rem;
+        }
+
+        .notification-success .notification-icon {
+            color: #28a745;
+        }
+
+        .notification-error .notification-icon {
+            color: #dc3545;
+        }
+
+        .notification-info .notification-icon {
+            color: #17a2b8;
+        }
+
+        .notification-message {
+            font-size: 14px;
+        }
     </style>
 </head>
 <body>
@@ -111,17 +200,26 @@ if (isset($_GET['delete_member'])) {
 
     <div class="content">
         <header class="top-header">
+        <div class="user-info">
+                    <i class='bx bx-user'></i>
+                    <span><?php echo htmlspecialchars($_SESSION['username']); ?></span> <!-- Имя пользователя из сессии -->
+                </div>
             <div class="date-container">
                 <i class='bx bx-calendar'></i>
                 <span class="date-text"><?php echo date('m/d/Y'); ?></span>
                 <span class="time-text"><?php echo date('H:i'); ?></span>
             </div>
+            <div class="search-container">
+                    <input type="text" class="search-bar" placeholder="Поиск по достижениям...">
+                </div>
         </header>
 
         <!-- Контейнер для таблицы БРСМ -->
         <div class="table-container">
             <h2 class="mb-3">Список членов БРСМ</h2>
-            <button class="btn btn-success mb-3" data-bs-toggle="modal" data-bs-target="#addMemberModal">Добавить члена</button>
+            <button class="btn-add" data-bs-toggle="modal" data-bs-target="#addMemberModal">
+            <i class='bx bx-plus-circle me-1'></i> Добавить члена БРСМ
+            </button>
             <table class="table table-hover">
                 <thead>
                     <tr>
@@ -221,6 +319,59 @@ if (isset($_GET['delete_member'])) {
         document.getElementById('edit_student_id').value = student_id;
         document.getElementById('edit_date_joined').value = date_joined;
     }
+    document.querySelector('.search-bar').addEventListener('input', function(e) {
+            const searchText = e.target.value.toLowerCase();
+            document.querySelectorAll('tbody tr').forEach(row => {
+                const text = row.textContent.toLowerCase();
+                row.style.display = text.includes(searchText) ? '' : 'none';
+            });
+        });
+    // Функция для отображения уведомлений
+    function showNotification(message, type = 'success') {
+        // Create notification element
+        const notification = document.createElement('div');
+        notification.className = `notification notification-${type}`;
+        notification.innerHTML = `
+            <div class="notification-icon">
+                ${type === 'success' ? '<i class="bx bx-check"></i>' : 
+                 type === 'error' ? '<i class="bx bx-x"></i>' : 
+                 '<i class="bx bx-info-circle"></i>'}
+            </div>
+            <div class="notification-message">${message}</div>
+        `;
+        
+        // Add to DOM
+        document.body.appendChild(notification);
+        
+        // Trigger animation
+        setTimeout(() => {
+            notification.classList.add('show');
+        }, 10);
+        
+        // Auto remove after 5 seconds
+        setTimeout(() => {
+            notification.classList.remove('show');
+            setTimeout(() => {
+                notification.remove();
+            }, 500); // Wait for fade out animation to complete
+        }, 5000);
+    }
+    </script>
+    
+    <!-- Код для отображения уведомлений из сессии -->
+    <script>
+    <?php
+    // Проверяем, есть ли уведомление в сессии
+    if (isset($_SESSION['notification'])) {
+        $notification = $_SESSION['notification'];
+        echo "document.addEventListener('DOMContentLoaded', function() {
+            showNotification('" . addslashes($notification['message']) . "', '" . $notification['type'] . "');
+        });";
+        
+        // Удаляем уведомление из сессии после отображения
+        unset($_SESSION['notification']);
+    }
+    ?>
     </script>
 
 </body>

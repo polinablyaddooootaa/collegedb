@@ -18,7 +18,7 @@ body {
 
 /* Стили для бокового меню */
 .sidebar {
-    background: #fff;
+    background: linear-gradient(135deg, #4946e5 0%, #636ff1 100%);
     padding: 2rem 1rem;
     border-right: 1px solid #e0e0e0;
     height: 100vh;
@@ -28,17 +28,167 @@ body {
     flex-direction: column;
     gap: 2rem;
 }
+.fixed-header {
+    position: sticky;
+    top: 0;
+    z-index: 1000;
+    background-color: #f4f7fc;
+    padding: 20px 20px 0 20px;
+}
+
+.top-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+    padding: 0 20px;
+}
+
+.user-info {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    background-color: white;
+    border-radius: 0.75rem;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
 
 .logo {
     display: flex;
     align-items: center;
-    gap: 1rem;
-    margin-bottom: 2rem;
-    color: #fda085; /* Updated logo color */
+
+
+
+}
+.card.action-card {
+    width: 583px;
+    height: 303px;
+    overflow: hidden;
+}
+
+.action-list {
+    height: calc(100% - 40px); /* Высота карточки минус высота заголовка */
+    overflow-y: auto;
+    padding-right: 10px;
+}
+
+.action-list ul {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.action-list li {
+    padding: 10px 0;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.action-list li:last-child {
+    border-bottom: none;
+}
+
+/* Стилизация скроллбара */
+.action-list::-webkit-scrollbar {
+    width: 6px;
+}
+
+.action-list::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 3px;
+}
+
+.action-list::-webkit-scrollbar-thumb {
+    background: #c1c1c1;
+    border-radius: 3px;
+}
+
+.action-list::-webkit-scrollbar-thumb:hover {
+    background: #a8a8a8;
+}
+
+.action-user {
+    font-weight: 500;
+    color: #4f46e5;
+    margin-right: 10px;
+}
+
+.action-timestamp {
+    color: #6b7280;
+    font-size: 0.875rem;
+}
+
+.action-detail {
+    margin-top: 5px;
+    color: #374151;
+}
+
+.card-title {
+    margin: 5px 0 15px 0;
+    padding-bottom: 10px;
+    border-bottom: 2px solid #f3f4f6;
+}
+.card-title {
+    font-size: 20px;
+    font-weight: bold;
+    margin-bottom: 15px;
+    color: #333;
+}
+
+.action-list ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.action-item {
+    padding: 12px;
+    border-bottom: 1px solid #eee;
+    transition: background 0.2s;
+}
+
+.action-item:last-child {
+    border-bottom: none;
+}
+
+.action-item:hover {
+    background: #f9f9f9;
+}
+
+.action-header {
+    display: flex;
+    justify-content: space-between;
+    font-size: 14px;
+    font-weight: 600;
+    color: #555;
+}
+
+.action-user {
+    color: #007bff;
+}
+
+.action-timestamp {
+    color: #888;
+    font-style: italic;
+}
+
+.action-detail {
+    margin-top: 5px;
+    font-size: 14px;
+    color: #444;
+}
+
+.search-container input {
+    padding: 0.75rem 1rem;
+    width: 400px;
+    border-radius: 0.75rem;
+    border: 1px solid #e2e8f0;
 }
 
 .logo img {
-    width: 50px; /* Increased logo size */
+    width: 190px; /* Increased logo size */
+    margin-left: 10px;
+
 }
 
 .logo strong {
@@ -59,7 +209,7 @@ body {
     border-radius: 0.5rem;
     cursor: pointer;
     transition: all 0.3s ease;
-    color: #555;
+    color: #ffffff;
     text-decoration: none;
 }
 
@@ -69,8 +219,8 @@ body {
 }
 
 .nav-item.active {
-    background: linear-gradient(135deg, #f6d365 0%, #fda085 100%);
-    color: #fff;
+    background: white;
+    color: #4c00ff;
 }
 
 /* Основной контент */
@@ -169,15 +319,18 @@ h3{
     box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
 }
 
-.achievement-card {
-    background: linear-gradient(135deg, #f6d365 0%, #fda085 100%);
-    color: #fff;
-}
+
 
 .chart-container {
     height: 200px;
     margin-bottom: 1rem;
 }
+#studentsChart {
+    width: 500px !important;
+    height: 240px !important;
+    margin-bottom: 15px;
+}
+
 
 /* Стили для таблицы */
 .table-container {
@@ -186,6 +339,7 @@ h3{
     padding-left: 1.5rem;
     padding-right: 1.5rem;
     padding-bottom: 1.5rem;
+    padding-top: 1.5rem;
     box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
     width: 100%;
     overflow-x: auto;
@@ -240,27 +394,6 @@ h3{
 
 .status-neutral {
     background: #fff0e0;
-    color: #7a5a2d;
+    color: linear-gradient(135deg, #8d8bb9 0%, #a5a6d5 100%);;
 }
 
-/* Адаптивность */
-@media screen and (max-width: 768px) {
-    .sidebar {
-        width: 200px;
-        padding: 1rem;
-    }
-
-    .main-content {
-        margin-left: 200px;
-        padding: 1rem;
-    }
-
-    .top-header {
-        flex-direction: column;
-        gap: 1rem;
-    }
-
-    .cards-grid {
-        grid-template-columns: 1fr;
-    }
-}

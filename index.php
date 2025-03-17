@@ -4,29 +4,110 @@ session_start();
 
 // Проверка авторизации
 if (!isset($_SESSION['user_id'])) {
-    // Если пользователь не авторизован, перенаправляем на страницу входа с ошибкой
     header('Location: login.php?error=not_authorized');
     exit;
 }
 
-// Обновленный SQL-запрос с JOIN с таблицей brsm
+// Функция для добавления действия в базу данных
+function addAction($pdo, $user_id, $action) {
+    $sql = "INSERT INTO actions (user_id, action) VALUES (?, ?)";
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute([$user_id, $action]);
+}
+
+
+
+// Обработка формы добавления студента
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_student'])) {
+    $name = $_POST['name'];
+    $group_name = $_POST['group_name'];
+    $brsm = isset($_POST['brsm']) ? 1 : 0;
+    $volunteer = isset($_POST['volunteer']) ? 1 : 0;
+
+    $sql = "INSERT INTO students (name, group_name, brsm, volunteer) VALUES (?, ?, ?, ?)";
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute([$name, $group_name, $brsm, $volunteer]);
+
+    // Расширенная запись действия добавления студента
+    addAction($pdo, $_SESSION['user_id'], 'Добавление записи в таблицу студентов: ' . $name . ' (Группа: ' . $group_name . ')');
+
+    header('Location: index.php');
+    exit;
+}
+
+// Обработка удаления студента
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_student'])) {
+    $student_id = $_POST['student_id'];
+
+    // Получаем имя студента перед удалением
+    $stmt = $pdo->prepare("SELECT name, group_name FROM students WHERE id = ?");
+    $stmt->execute([$student_id]);
+    $student = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    $sql = "DELETE FROM students WHERE id = ?";
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute([$student_id]);
+
+    // Запись действия удаления студента
+    addAction($pdo, $_SESSION['user_id'], 'Удаление записи из таблицы студентов: ' . $student['name'] . ' (Группа: ' . $student['group_name'] . ')');
+
+    header('Location: index.php');
+    exit;
+}
+
+// Обработка редактирования студента
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_student'])) {
+    $student_id = $_POST['student_id'];
+    $name = $_POST['name'];
+    $group_name = $_POST['group_name'];
+    $brsm = isset($_POST['brsm']) ? 1 : 0;
+    $volunteer = isset($_POST['volunteer']) ? 1 : 0;
+
+    // Получаем текущие данные студента
+    $stmt = $pdo->prepare("SELECT * FROM students WHERE id = ?");
+    $stmt->execute([$student_id]);
+    $oldStudent = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    $sql = "UPDATE students SET name = ?, group_name = ?, brsm = ?, volunteer = ? WHERE id = ?";
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute([$name, $group_name, $brsm, $volunteer, $student_id]);
+
+    // Создаем текст изменений
+    $changes = [];
+    if ($oldStudent['name'] !== $name) $changes[] = 'ФИО';
+    if ($oldStudent['group_name'] !== $group_name) $changes[] = 'Группа';
+    if ($oldStudent['brsm'] != $brsm) $changes[] = 'Статус БРСМ';
+    if ($oldStudent['volunteer'] != $volunteer) $changes[] = 'Статус волонтера';
+
+    if (!empty($changes)) {
+        $changeText = implode(', ', $changes);
+        addAction($pdo, $_SESSION['user_id'], 'Изменение записи в таблице студентов: ' . $name . ' (Измененные поля: ' . $changeText . ')');
+    }
+
+    header('Location: index.php');
+    exit;
+}
+
+// Получение списка студентов
 $sql = "SELECT students.id, students.name, students.group_name, 
                (CASE WHEN brsm.student_id IS NOT NULL THEN 1 ELSE 0 END) AS brsm,
-               students.volunteer, COUNT(achievements.id) AS achievement_count
+               students.volunteer
         FROM students 
-        LEFT JOIN achievements ON students.id = achievements.student_id 
-        LEFT JOIN brsm ON students.id = brsm.student_id  -- Используем таблицу brsm
-        GROUP BY students.id";
+        LEFT JOIN brsm ON students.id = brsm.student_id";
 $stmt = $pdo->prepare($sql);
 $stmt->execute();
 $students = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-$achievementsData = [];
-$studentsData = [];
-foreach ($students as $student) { 
-    $achievementsData[] = $student['achievement_count'];
-    $studentsData[] = $student['id'];
-}
+// Получение последних действий
+$actionsSql = "SELECT actions.id, actions.action, actions.timestamp, users.username,
+               DATE_FORMAT(actions.timestamp, '%Y-%m-%d %H:%i:%s') as formatted_timestamp
+               FROM actions
+               INNER JOIN users ON actions.user_id = users.id
+               ORDER BY actions.timestamp DESC 
+               LIMIT 10";
+$actionsStmt = $pdo->prepare($actionsSql);
+$actionsStmt->execute();
+$actions = $actionsStmt->fetchAll(PDO::FETCH_ASSOC);
 ?>
 <!DOCTYPE html>
 <html lang="ru">
@@ -39,6 +120,7 @@ foreach ($students as $student) {
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
     <link rel="stylesheet" href="index.css">
+    <link rel="icon" href="logo2.png" type="image/png">
 </head>
 
 <body>
@@ -47,18 +129,33 @@ foreach ($students as $student) {
      
         <main class="main-content">
             <header class="top-header">
+            <div class="user-info">
+                    <i class='bx bx-user'></i>
+                    <span><?php echo htmlspecialchars($_SESSION['username']); ?></span> <!-- Имя пользователя из сессии -->
+                </div>
                 <div class="date-container">
                     <i class='bx bx-calendar'></i>
                     <span class="date-text"><?php echo date('m/d/Y'); ?></span>
                     <span class="time-text"><?php echo date('H:i'); ?></span>
                 </div>
+                <div class="search-container">
+                    <input type="text" class="search-bar" placeholder="Поиск по студентам">
+                </div>
             </header>
 
             <div class="cards-grid">
-                <div class="card achievement-card">
-                    <h2 class="card-title">Достижения</h2>
-                    <div class="chart-container">
-                        <canvas id="achievementsChart"></canvas>
+                <div class="card action-card">
+                    <h2 class="card-title">Последние действия</h2>
+                    <div class="action-list">
+                        <ul>
+                            <?php foreach ($actions as $action): ?>
+                                <li>
+                                    <span class="action-user"><?php echo htmlspecialchars($action['username']); ?> (сессия)</span>
+                                    <span class="action-timestamp"><?php echo date('d.m.Y H:i:s', strtotime($action['timestamp'])); ?></span>
+                                    <div class="action-detail"><?php echo htmlspecialchars($action['action']); ?></div>
+                                </li>
+                            <?php endforeach; ?>
+                        </ul>
                     </div>
                 </div>
                 
@@ -80,7 +177,6 @@ foreach ($students as $student) {
                             <th>Группа</th>
                             <th>БРСМ</th>
                             <th>Волонтер</th>
-                            <th>Достижения</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -97,40 +193,23 @@ foreach ($students as $student) {
                                     <?= $student['volunteer'] ? 'Активен' : 'Нет' ?>
                                 </span>
                             </td>
-                            <td><?= htmlspecialchars($student['achievement_count']) ?></td>
                         </tr>
                         <?php endforeach; ?>
                     </tbody>
                 </table>
-            </div>
-        </main>
-    </div>
+
+               
 
     <!-- Модальное окно будет добавлено через JavaScript -->
 
     <script>
-        // Добавляем модальное окно в HTML после контейнера таблицы
-        document.querySelector('.table-container').insertAdjacentHTML('afterend', `
-        <div id="studentsModal" class="modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000;">
-            <div class="modal-content" style="position: relative; background: white; margin: 10% auto; padding: 20px; width: 80%; max-width: 800px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
-                <span class="close-modal" style="position: absolute; right: 20px; top: 20px; font-size: 24px; cursor: pointer; color: #666;">&times;</span>
-                <h2 id="modalTitle" style="margin-bottom: 20px; color: #333;"></h2>
-                <div id="modalContent" style="max-height: 400px; overflow-y: auto;">
-                    <table class="table" style="width: 100%;">
-                        <thead>
-                            <tr>
-                                <th>ID</th>
-                                <th>ФИО</th>
-                                <th>Группа</th>
-                                <th>Достижения</th>
-                            </tr>
-                        </thead>
-                        <tbody id="modalTableBody"></tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-        `);
+  document.querySelector('.search-bar').addEventListener('input', function(e) {
+            const searchText = e.target.value.toLowerCase();
+            document.querySelectorAll('tbody tr').forEach(row => {
+                const text = row.textContent.toLowerCase();
+                row.style.display = text.includes(searchText) ? '' : 'none';
+            });
+        });
 
         // Получаем данные о студентах из PHP
         const students = <?= json_encode($students) ?>;
@@ -195,102 +274,110 @@ foreach ($students as $student) {
             type: 'bar',
             data: studentsData,
             options: {
-                responsive: true,
-                scales: {
-                    y: {
-                        beginAtZero: true
-                    }
+    responsive: false,
+    maintainAspectRatio: false,
+    width: 600,  // фиксированная ширина
+    height: 400, // фиксированная высота
+    scales: {
+        y: {
+            beginAtZero: true,
+            grid: {
+                color: 'rgba(200, 200, 200, 0.3)',
+                drawBorder: true,
+            },
+            ticks: {
+                font: {
+                    size: 14
                 },
-                plugins: {
-                    legend: {
-                        position: 'top'
-                    }
-                },
-                onClick: (event, elements) => {
-                    if (elements.length === 0) return;
-                    
-                    const index = elements[0].datasetIndex;
-                    let filteredStudents = [];
-                    let categoryTitle = '';
-                    
-                    // Фильтруем студентов в зависимости от выбранной категории
-                    switch(index) {
-                        case 0: // Всего учащихся
-                            filteredStudents = students;
-                            categoryTitle = 'Все учащиеся';
-                            break;
-                        case 1: // БРСМ
-                            filteredStudents = students.filter(s => s.brsm == 1);
-                            categoryTitle = 'Члены БРСМ';
-                            break;
-                        case 2: // Волонтеры
-                            filteredStudents = students.filter(s => s.volunteer == 1);
-                            categoryTitle = 'Волонтеры';
-                            break;
-                        case 3: // Не состоят нигде
-                            filteredStudents = students.filter(s => s.brsm == 0 && s.volunteer == 0);
-                            categoryTitle = 'Не состоят в организациях';
-                            break;
-                    }
-                    
-                    // Отображаем модальное окно со списком студентов
-                    showStudentsModal(filteredStudents, categoryTitle);
-                }
+                color: 'black'
             }
+        },
+        x: {
+            grid: {
+                color: 'rgba(200, 200, 200, 0.3)',
+                drawBorder: true,
+            },
+            ticks: {
+                font: {
+                    size: 14
+                },
+                color: 'black'
+            }
+        }
+    },
+    plugins: {
+        legend: {
+            position: 'top'
+        }
+    }
+}
         });
 
-       
+       // Функция для отображения модального окна со списком студентов
+function showStudentsModal(filteredStudents, categoryTitle) {
+    document.getElementById('modalTitle').textContent = categoryTitle;
+    
+    const modalTableBody = document.getElementById('modalTableBody');
+    modalTableBody.innerHTML = '';
+    
+    filteredStudents.forEach(student => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td>${student.id}</td>
+            <td>${student.name}</td>
+            <td>${student.group_name}</td>
+        `;
+        modalTableBody.appendChild(row);
+    });
+    
+    document.getElementById('studentsModal').style.display = 'block';
+}
 
-        // Функция для отображения модального окна со списком студентов
-        function showStudentsModal(filteredStudents, categoryTitle) {
-            document.getElementById('modalTitle').textContent = categoryTitle;
-            
-            const modalTableBody = document.getElementById('modalTableBody');
-            modalTableBody.innerHTML = '';
-            
-            filteredStudents.forEach(student => {
-                const row = document.createElement('tr');
-                row.innerHTML = `
-                    <td>${student.id}</td>
-                    <td>${student.name}</td>
-                    <td>${student.group_name}</td>
-                    <td>${student.achievement_count}</td>
-                `;
-                modalTableBody.appendChild(row);
-            });
-            
-            document.getElementById('studentsModal').style.display = 'block';
+// Закрытие модального окна
+document.querySelector('.close-modal').addEventListener('click', function() {
+    document.getElementById('studentsModal').style.display = 'none';
+});
+
+// Закрытие модального окна при клике вне его области
+window.addEventListener('click', function(event) {
+    const modal = document.getElementById('studentsModal');
+    if (event.target === modal) {
+        modal.style.display = 'none';
+    }
+});
+
+studentsChart.canvas.addEventListener('click', function(event) {
+    const points = studentsChart.getElementsAtEventForMode(event, 'nearest', {intersect: true}, true);
+    console.log(points); // Посмотреть, какие данные приходят при клике
+    if (points.length) {
+        const index = points[0].index;
+        const datasetIndex = points[0].datasetIndex;
+        console.log(index, datasetIndex); // Отладка: проверяем индекс и datasetIndex
+        
+        let filteredStudents = [];
+        let categoryTitle = '';
+
+        // В зависимости от выбранной категории, фильтруем студентов
+        if (datasetIndex === 0) { // Всего учащихся
+            categoryTitle = 'Всего учащихся';
+            filteredStudents = students;
+        } else if (datasetIndex === 1) { // БРСМ
+            categoryTitle = 'БРСМ';
+            filteredStudents = students.filter(s => s.brsm == 1);
+        } else if (datasetIndex === 2) { // Волонтеры
+            categoryTitle = 'Волонтеры';
+            filteredStudents = students.filter(s => s.volunteer == 1);
+        } else if (datasetIndex === 3) { // Не состоят нигде
+            categoryTitle = 'Не состоят нигде';
+            filteredStudents = students.filter(s => s.brsm == 0 && s.volunteer == 0);
         }
 
-        // Функция для отображения детальной информации о студенте
-        function showStudentDetails(student) {
-            document.getElementById('modalTitle').textContent = `${student.name} - Подробная информация`;
-            
-            const modalTableBody = document.getElementById('modalTableBody');
-            modalTableBody.innerHTML = `
-                <tr>
-                    <td>${student.id}</td>
-                    <td>${student.name}</td>
-                    <td>${student.group_name}</td>
-                    <td>${student.achievement_count}</td>
-                </tr>
-            `;
-            
-            document.getElementById('studentsModal').style.display = 'block';
-        }
+        // Показываем модальное окно с фильтрованными студентами
+        showStudentsModal(filteredStudents, categoryTitle);
+    }
+});
 
-        // Закрытие модального окна
-        document.querySelector('.close-modal').addEventListener('click', function() {
-            document.getElementById('studentsModal').style.display = 'none';
-        });
 
-        // Закрытие модального окна при клике вне его области
-        window.addEventListener('click', function(event) {
-            const modal = document.getElementById('studentsModal');
-            if (event.target === modal) {
-                modal.style.display = 'none';
-            }
-        });
     </script>
 </body>
 </html>

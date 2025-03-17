@@ -35,11 +35,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Вход в систему</title>
+    <link rel="icon" href="logo2.png" type="image/png">
     <style>
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
+            font-family: 'Montserrat', sans-serif;
         }
 
         body {
@@ -47,7 +49,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
             height: 100vh;
             display: flex;
-            background:rgb(255, 255, 255);
+            background: linear-gradient(135deg, #4946e5 0%, #636ff1 100%);
             color: #fff;
         }
 
@@ -71,7 +73,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
             flex-direction: column;
             justify-content: center;
             padding: 2rem;
-            background: linear-gradient(135deg, #f6d365 0%, #fda085 100%);
+            background:rgb(189, 216, 255);
             color: #1f2937;
         }
 
@@ -106,7 +108,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
             padding: 1rem;
             border: none;
             border-radius: 8px;
-            background: #1f2937;
+            background: linear-gradient(135deg, #4946e5 0%, #636ff1 100%);
             color: #fff;
             font-size: 1rem;
             font-weight: 600;
@@ -114,9 +116,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
             transition: background 0.3s ease;
         }
 
-        button:hover {
-            background: #374151;
-        }
+     
 
         .footer-links {
             display: flex;
@@ -161,7 +161,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
 <body>
     <div class="login-container">
         <div class="brand-section">
-            <div class="logo">Your Logo</div>
+        <img src="logo1.png" alt="Logo 1">
         </div>
         <div class="form-section">
             <div class="form-container">
