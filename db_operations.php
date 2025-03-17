@@ -249,61 +249,7 @@ if (isset($_GET['remove_brsm'])) {
     exit();
 }
 
-// Добавление новой группы
-function addGroup($name, $students_count, $year, $faculty) {
-    global $pdo;
-    $sql = "INSERT INTO groups (group_name, students_count, year, faculty) VALUES (:group_name, :students_count, :year, :faculty)";
-    try {
-        $stmt = $pdo->prepare($sql);
-        $stmt->bindParam(':group_name', $name);
-        $stmt->bindParam(':students_count', $students_count);
-        $stmt->bindParam(':year', $year);
-        $stmt->bindParam(':faculty', $faculty);
-        $stmt->execute();
-    } catch (PDOException $e) {
-        echo "Ошибка: " . $e->getMessage();
-    }
-}
 
-// Редактирование существующей группы
-function editGroup($id, $name, $students_count, $year, $faculty) {
-    global $pdo;
-    $sql = "UPDATE groups SET group_name = :group_name, students_count = :students_count, year = :year, faculty = :faculty WHERE id = :id";
-    try {
-        $stmt = $pdo->prepare($sql);
-        $stmt->bindParam(':id', $id);
-        $stmt->bindParam(':group_name', $name);
-        $stmt->bindParam(':students_count', $students_count);
-        $stmt->bindParam(':year', $year);
-        $stmt->bindParam(':faculty', $faculty);
-        $stmt->execute();
-    } catch (PDOException $e) {
-        echo "Ошибка: " . $e->getMessage();
-    }
-}
-
-// Удаление группы
-function deleteGroup($id) {
-    global $pdo;
-    try {
-        $stmt = $pdo->prepare("DELETE FROM groups WHERE id = :id");
-        $stmt->bindParam(':id', $id);
-        $stmt->execute();
-    } catch (PDOException $e) {
-        echo "Ошибка удаления: " . $e->getMessage();
-    }
-}
-
-// Получение всех групп
-function getAllGroups() {
-    global $pdo;
-    try {
-        $stmt = $pdo->query("SELECT * FROM groups");
-        return $stmt->fetchAll(PDO::FETCH_ASSOC);
-    } catch (PDOException $e) {
-        echo "Ошибка при получении групп: " . $e->getMessage();
-    }
-}
 
 // Удаление достижения
 if (isset($_GET['delete_achievement'])) {
