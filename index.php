@@ -20,16 +20,16 @@ function addAction($pdo, $user_id, $action) {
 // Обработка формы добавления студента
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_student'])) {
     $name = $_POST['name'];
-    $group_name = $_POST['group_name'];
+    $group_id = $_POST['group_id'];
     $brsm = isset($_POST['brsm']) ? 1 : 0;
     $volunteer = isset($_POST['volunteer']) ? 1 : 0;
 
-    $sql = "INSERT INTO students (name, group_name, brsm, volunteer) VALUES (?, ?, ?, ?)";
+    $sql = "INSERT INTO students (name, group_id, brsm, volunteer) VALUES (?, ?, ?, ?)";
     $stmt = $pdo->prepare($sql);
-    $stmt->execute([$name, $group_name, $brsm, $volunteer]);
+    $stmt->execute([$name, $group_id, $brsm, $volunteer]);
 
     // Расширенная запись действия добавления студента
-    addAction($pdo, $_SESSION['user_id'], 'Добавление записи в таблицу студентов: ' . $name . ' (Группа: ' . $group_name . ')');
+    addAction($pdo, $_SESSION['user_id'], 'Добавление записи в таблицу студентов: ' . $name . ' (Группа: ' . $group_id . ')');
 
     header('Location: index.php');
     exit;
@@ -40,7 +40,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_student'])) {
     $student_id = $_POST['student_id'];
 
     // Получаем имя студента перед удалением
-    $stmt = $pdo->prepare("SELECT name, group_name FROM students WHERE id = ?");
+    $stmt = $pdo->prepare("SELECT name, group_id FROM students WHERE id = ?");
     $stmt->execute([$student_id]);
     $student = $stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -49,7 +49,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_student'])) {
     $stmt->execute([$student_id]);
 
     // Запись действия удаления студента
-    addAction($pdo, $_SESSION['user_id'], 'Удаление записи из таблицы студентов: ' . $student['name'] . ' (Группа: ' . $student['group_name'] . ')');
+    addAction($pdo, $_SESSION['user_id'], 'Удаление записи из таблицы студентов: ' . $student['name'] . ' (Группа: ' . $student['group_id'] . ')');
 
     header('Location: index.php');
     exit;
@@ -59,7 +59,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_student'])) {
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_student'])) {
     $student_id = $_POST['student_id'];
     $name = $_POST['name'];
-    $group_name = $_POST['group_name'];
+    $group_id = $_POST['group_id'];
     $brsm = isset($_POST['brsm']) ? 1 : 0;
     $volunteer = isset($_POST['volunteer']) ? 1 : 0;
 
@@ -68,14 +68,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_student'])) {
     $stmt->execute([$student_id]);
     $oldStudent = $stmt->fetch(PDO::FETCH_ASSOC);
 
-    $sql = "UPDATE students SET name = ?, group_name = ?, brsm = ?, volunteer = ? WHERE id = ?";
+    $sql = "UPDATE students SET name = ?, group_id = ?, brsm = ?, volunteer = ? WHERE id = ?";
     $stmt = $pdo->prepare($sql);
-    $stmt->execute([$name, $group_name, $brsm, $volunteer, $student_id]);
+    $stmt->execute([$name, $group_id, $brsm, $volunteer, $student_id]);
 
     // Создаем текст изменений
     $changes = [];
     if ($oldStudent['name'] !== $name) $changes[] = 'ФИО';
-    if ($oldStudent['group_name'] !== $group_name) $changes[] = 'Группа';
+    if ($oldStudent['group_id'] !== $group_id) $changes[] = 'Группа';
     if ($oldStudent['brsm'] != $brsm) $changes[] = 'Статус БРСМ';
     if ($oldStudent['volunteer'] != $volunteer) $changes[] = 'Статус волонтера';
 
@@ -89,7 +89,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_student'])) {
 }
 
 // Получение списка студентов
-$sql = "SELECT students.id, students.name, students.group_name, 
+$sql = "SELECT students.id, students.name, students.group_id, 
                (CASE WHEN brsm.student_id IS NOT NULL THEN 1 ELSE 0 END) AS brsm,
                students.volunteer
         FROM students 
@@ -184,7 +184,7 @@ $actions = $actionsStmt->fetchAll(PDO::FETCH_ASSOC);
                         <tr>
                             <td><?= htmlspecialchars($student['id']) ?></td>
                             <td><?= htmlspecialchars($student['name']) ?></td>
-                            <td><?= htmlspecialchars($student['group_name']) ?></td>
+                            <td><?= htmlspecialchars($student['group_id']) ?></td>
                             <td><span class="status-badge <?= $student['brsm'] ? 'status-yes' : 'status-no' ?>">
                             <?= $student['brsm'] ? 'Да' : 'Нет' ?>
                             </span></td>

@@ -1,50 +1,47 @@
 <?php
 session_start();
-
-// Подключаем конфигурацию и операции с базой данных
 include('config.php');
-require_once 'db_operations.php';
 include('functions.php');
 
 // Получение списка групп с количеством студентов
-$sql = "SELECT g.id, g.group_name, g.department, COUNT(s.id) as student_count 
-        FROM groups g
-        LEFT JOIN students s ON g.id = s.group_id
-        GROUP BY g.id
+$sql = "SELECT g.id, g.group_name, g.curator, COUNT(s.id) as student_count 
+        FROM groups g 
+        LEFT JOIN students s ON g.id = s.group_id 
+        GROUP BY g.id, g.group_name, g.curator
         ORDER BY g.group_name";
 $stmt = $pdo->prepare($sql);
 $stmt->execute();
 $groups = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-// Удаление группы
-if (isset($_GET['delete_group'])) {
-    $id = $_GET['delete_group'];
-    
-    // Проверяем, есть ли студенты в этой группе
-    $check_sql = "SELECT COUNT(*) FROM students WHERE group_id = ?";
-    $check_stmt = $pdo->prepare($check_sql);
-    $check_stmt->execute([$id]);
-    $student_count = $check_stmt->fetchColumn();
-    
-    if ($student_count > 0) {
-        setNotification("Невозможно удалить группу, в которой есть студенты", "error");
-    } else {
-        $sql = "DELETE FROM groups WHERE id = ?";
-        $stmt = $pdo->prepare($sql);
-        $stmt->execute([$id]);
-        setNotification("Группа успешно удалена", "success");
-    }
-    
-    header("Location: groups.php");
-    exit;
-}
+// Если выбрана группа для просмотра
+$selected_group = null;
+$group_students = [];
 
-// Функция для установки сообщения уведомления
-function setNotification($message, $type = 'success') {
-    $_SESSION['notification'] = [
-        'message' => $message,
-        'type' => $type
-    ];
+if (isset($_GET['view_group'])) {
+    $group_name = $_GET['view_group'];
+    
+    // Получаем данные о группе
+    $group_sql = "SELECT * FROM groups WHERE group_name = ?";
+    $group_stmt = $pdo->prepare($group_sql);
+    $group_stmt->execute([$group_name]);
+    $selected_group = $group_stmt->fetch(PDO::FETCH_ASSOC);
+    
+    if ($selected_group) {
+        // Получаем студентов группы
+        $students_sql = "SELECT s.*, 
+                        (SELECT COUNT(*) FROM brsm WHERE student_id = s.id) as brsm_status,
+                        (SELECT COUNT(*) FROM volunteers WHERE student_id = s.id) as volunteer_status
+                        FROM students s 
+                        WHERE s.group_id = ?
+                        ORDER BY s.name";
+        $students_stmt = $pdo->prepare($students_sql);
+        $students_stmt->execute([$selected_group['id']]);
+        $group_students = $students_stmt->fetchAll(PDO::FETCH_ASSOC);
+    } else {
+        setNotification("Группа не найдена.", "error");
+        header("Location: groups.php");
+        exit;
+    }
 }
 ?>
 
@@ -58,6 +55,7 @@ function setNotification($message, $type = 'success') {
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/boxicons@2.1.4/css/boxicons.min.css">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0-alpha1/css/bootstrap.min.css" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0-alpha1/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.7.0/chart.min.js"></script>
     <link rel="stylesheet" href="index.css"> <!-- Подключение стилей -->
     <link rel="icon" href="logo2.png" type="image/png">
     <style>
@@ -155,10 +153,29 @@ function setNotification($message, $type = 'success') {
             border-radius: 10px;
             padding: 20px;
             box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
         }
         .table th {
             background-color: #f1f3f9;
             text-transform: uppercase;
+        }
+        .status-badge {
+            padding: 5px 10px;
+            border-radius: 5px;
+            font-size: 0.9rem;
+            font-weight: bold;
+        }
+        .status-yes {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        .status-no {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+        .status-neutral {
+            background-color: #fff3cd;
+            color: #856404;
         }
         .btn-add {
             font-size: 1rem;
@@ -178,20 +195,29 @@ function setNotification($message, $type = 'success') {
             background-color: #ffffff;
             border: none;
         }
+
         .modal-header {
             border-bottom: 2px solid #f3f4f6;
             padding: 1.25rem;
             background-color: #f9fafb;
         }
+
         .modal-body {
             padding: 1.5rem;
         }
+
         .form-control, .form-select {
             border-radius: 0.5rem;
             padding: 0.625rem;
             border: 1px solid #e5e7eb;
             background-color: #fafafa;
         }
+
+        .form-control:focus, .form-select:focus {
+            border-color: #6366f1;
+            box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.1);
+        }
+
         .btn-primary {
             background-color: #6366f1;
             border-color: #6366f1;
@@ -200,6 +226,7 @@ function setNotification($message, $type = 'success') {
             padding: 0.75rem;
             transition: background-color 0.3s, transform 0.3s;
         }
+
         .btn-close {
             background-color: transparent;
             border: none;
@@ -207,37 +234,24 @@ function setNotification($message, $type = 'success') {
             color: #6366f1;
             transition: color 0.3s;
         }
+
         .btn-close:hover {
             color: #4f46e5;
         }
-        .group-card {
-            border-radius: 15px;
-            background-color: white;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
-            transition: transform 0.3s, box-shadow 0.3s;
-            margin-bottom: 20px;
-            overflow: hidden;
+        
+        .back-button {
+            margin-bottom: 15px;
+            display: inline-block;
         }
-        .group-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+        
+        .group-name {
+            cursor: pointer;
+            color: #4946e5;
+            text-decoration: underline;
         }
-        .group-card-header {
-            background-color: #f1f3f9;
-            padding: 15px 20px;
-            border-bottom: 1px solid #e5e7eb;
-        }
-        .group-card-body {
-            padding: 15px 20px;
-        }
-        .group-stat {
-            display: flex;
-            align-items: center;
-            margin-bottom: 10px;
-        }
-        .group-stat i {
-            margin-right: 10px;
-            color: #6366f1;
+        
+        .group-name:hover {
+            color: #636ff1;
         }
     </style>
 </head>
@@ -245,78 +259,121 @@ function setNotification($message, $type = 'success') {
 
 <?php include('sidebar.php'); ?>
 
-<!-- Основной контент -->
-<div class="content">
-    <!-- Верхний заголовок -->
-    <header class="top-header">
-        <div class="user-info">
-            <i class='bx bx-user'></i>
-            <span><?php echo htmlspecialchars($_SESSION['username']); ?></span>
-        </div>
-        <div class="date-container">
-            <i class='bx bx-calendar'></i>
-            <span class="date-text"><?php echo date('m/d/Y'); ?></span>
-            <span class="time-text"><?php echo date('H:i'); ?></span>
-        </div>
-        <div class="search-container">
-            <input type="text" class="search-bar" placeholder="Поиск по группе...">
-        </div>
-    </header>
-
-    <!-- Контейнер для таблицы групп -->
-    <div class="table-container">
-        <h2 class="mb-3">Список групп</h2>
-        <button class="btn-add" data-bs-toggle="modal" data-bs-target="#addGroupModal">
-            <i class='bx bx-plus-circle me-1'></i> Добавить группу
-        </button>
-
-        <div class="row">
-            <?php foreach ($groups as $group): ?>
-            <div class="col-md-4">
-                <div class="group-card">
-                    <div class="group-card-header">
-                        <h5><?= htmlspecialchars($group['group_name']) ?></h5>
-                    </div>
-                    <div class="group-card-body">
-                        <?php if(!empty($group['department'])): ?>
-                        <div class="group-stat">
-                            <i class='bx bx-building'></i>
-                            <span><?= htmlspecialchars($group['department']) ?></span>
-                        </div>
-                        <?php endif; ?>
-                        <div class="group-stat">
-                            <i class='bx bx-user-plus'></i>
-                            <span><?= htmlspecialchars($group['student_count']) ?> студентов</span>
-                        </div>
-                        <div class="d-flex justify-content-between mt-3">
-                            <a href="group_details.php?id=<?= $group['id'] ?>" class="btn btn-sm btn-primary">
-                                <i class='bx bx-show'></i> Подробнее
-                            </a>
-                            <button class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" 
-                                    data-bs-target="#editGroupModal"
-                                    data-id="<?= $group['id'] ?>"
-                                    data-name="<?= htmlspecialchars($group['group_name']) ?>"
-                                    data-department="<?= htmlspecialchars($group['department'] ?? '') ?>">
-                                <i class='bx bx-edit-alt'></i>
-                            </button>
-                            <a class="btn btn-sm btn-outline-danger" href="groups.php?delete_group=<?= $group['id'] ?>" 
-                               onclick="return confirm('Вы уверены, что хотите удалить группу?')">
-                               <i class='bx bx-trash'></i>
-                            </a>
-                        </div>
-                    </div>
-                </div>
+    <!-- Основной контент -->
+    <div class="content">
+        <!-- Верхний заголовок -->
+        <header class="top-header">
+            <div class="user-info">
+                <i class='bx bx-user'></i>
+                <span><?php echo htmlspecialchars($_SESSION['username']); ?></span>
             </div>
-            <?php endforeach; ?>
-        </div>
+            <div class="date-container">
+                <i class='bx bx-calendar'></i>
+                <span class="date-text"><?php echo date('m/d/Y'); ?></span>
+                <span class="time-text"><?php echo date('H:i'); ?></span>
+            </div>
+            <div class="search-container">
+                <input type="text" class="search-bar" placeholder="Поиск...">
+            </div>
+        </header>
 
-        <?php if (count($groups) === 0): ?>
-        <div class="alert alert-info">
-            Нет добавленных групп. Создайте новую группу, нажав на кнопку "Добавить группу".
-        </div>
+        <?php if ($selected_group): ?>
+            <!-- Отображение студентов выбранной группы -->
+            <div class="table-container">
+                <a href="groups.php" class="btn btn-outline-secondary back-button">
+                    <i class='bx bx-arrow-back'></i> Назад к списку групп
+                </a>
+                <h2 class="mb-3">Студенты группы <?= htmlspecialchars($selected_group['group_name']) ?></h2>
+                <p>Куратор: <?= htmlspecialchars($selected_group['curator']) ?></p>
+                
+                <?php if (count($group_students) > 0): ?>
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>ФИО</th>
+                                <th>БРСМ</th>
+                                <th>Волонтер</th>
+                                <th>Действия</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($group_students as $student): ?>
+                                <tr>
+                                    <td><?= htmlspecialchars($student['id']) ?></td>
+                                    <td><?= htmlspecialchars($student['name']) ?></td>
+                                    <td>
+                                        <span class="status-badge <?= $student['brsm_status'] > 0 ? 'status-yes' : 'status-no' ?>">
+                                            <?= $student['brsm_status'] > 0 ? 'Состоит' : 'Не состоит' ?>
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <span class="status-badge <?= $student['volunteer_status'] > 0 ? 'status-yes' : 'status-neutral' ?>">
+                                            <?= $student['volunteer_status'] > 0 ? 'Активен' : 'Не участвует' ?>
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <a href="students.php" class="btn btn-outline-primary btn-sm">
+                                            <i class='bx bx-user-circle'></i> Профиль
+                                        </a>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                <?php else: ?>
+                    <div class="alert alert-info">В этой группе пока нет студентов.</div>
+                <?php endif; ?>
+            </div>
+        <?php else: ?>
+            <!-- Список групп -->
+            <div class="table-container">
+                <h2 class="mb-3">Группы</h2>
+                <button class="btn-add" data-bs-toggle="modal" data-bs-target="#addGroupModal">
+                    <i class='bx bx-plus-circle me-1'></i> Добавить группу
+                </button>
+                
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Название группы</th>
+                            <th>Куратор</th>
+                            <th>Кол-во студентов</th>
+                            <th>Действия</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php foreach ($groups as $group): ?>
+                            <tr>
+                                <td><?= htmlspecialchars($group['id']) ?></td>
+                                <td>
+                                <a class="group-name" href="groups.php?view_group=<?= urlencode($group['group_name']) ?>">
+    <?= htmlspecialchars($group['group_name']) ?>
+</a>
+                                </td>
+                                <td><?= htmlspecialchars($group['curator']) ?></td>
+                                <td><?= htmlspecialchars($group['student_count']) ?></td>
+                                <td>
+                                    <button class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" 
+                                            data-bs-target="#editGroupModal"
+                                            data-id="<?= $group['id'] ?>"
+                                            data-name="<?= htmlspecialchars($group['group_name']) ?>"
+                                            data-curator="<?= htmlspecialchars($group['curator']) ?>">
+                                        <i class='bx bx-edit-alt'></i>
+                                    </button>
+                                    <a class="btn btn-outline-danger btn-sm" href="groups.php?delete_group=<?= $group['id'] ?>" 
+                                    onclick="return confirm('Вы уверены, что хотите удалить группу?')">
+                                        <i class='bx bx-trash'></i>
+                                    </a>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
         <?php endif; ?>
     </div>
-</div>
 
 <!-- Модальное окно добавления группы -->
 <div class="modal fade" id="addGroupModal" tabindex="-1" aria-labelledby="addGroupModalLabel" aria-hidden="true">
@@ -334,10 +391,10 @@ function setNotification($message, $type = 'success') {
                         <input type="text" class="form-control" name="group_name" required>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">Отделение/Факультет</label>
-                        <input type="text" class="form-control" name="department">
+                        <label class="form-label">Куратор</label>
+                        <input type="text" class="form-control" name="curator" required>
                     </div>
-                    <button type="submit" class="btn btn-primary w-100"><button type="submit" class="btn btn-primary w-100">Добавить</button>
+                    <button type="submit" class="btn btn-primary w-100">Добавить</button>
                 </form>
             </div>
         </div>
@@ -361,8 +418,8 @@ function setNotification($message, $type = 'success') {
                         <input type="text" class="form-control" id="edit_group_name" name="group_name" required>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">Отделение/Факультет</label>
-                        <input type="text" class="form-control" id="edit_department" name="department">
+                        <label class="form-label">Куратор</label>
+                        <input type="text" class="form-control" id="edit_curator" name="curator" required>
                     </div>
                     <button type="submit" class="btn btn-primary w-100">Сохранить изменения</button>
                 </form>
@@ -380,8 +437,8 @@ function setNotification($message, $type = 'success') {
         notification.innerHTML = `
             <div class="notification-icon">
                 ${type === 'success' ? '<i class="bx bx-check"></i>' : 
-                 type === 'error' ? '<i class="bx bx-x"></i>' : 
-                 '<i class="bx bx-info-circle"></i>'}
+                type === 'error' ? '<i class="bx bx-x"></i>' : 
+                '<i class="bx bx-info-circle"></i>'}
             </div>
             <div class="notification-message">${message}</div>
         `;
@@ -403,9 +460,32 @@ function setNotification($message, $type = 'success') {
         }, 5000);
     }
 
-    // Код для отображения уведомлений из сессии
+    // Поиск по таблице
+    document.querySelector('.search-bar').addEventListener('input', function(e) {
+        const searchText = e.target.value.toLowerCase();
+        document.querySelectorAll('tbody tr').forEach(row => {
+            const text = row.textContent.toLowerCase();
+            row.style.display = text.includes(searchText) ? '' : 'none';
+        });
+    });
+
+    // Заполнение формы редактирования
+    document.querySelectorAll('.btn-outline-primary').forEach(button => {
+        button.addEventListener('click', function() {
+            if (this.dataset.id) {
+                const groupId = this.dataset.id;
+                const groupName = this.dataset.name;
+                const curator = this.dataset.curator;
+
+                document.getElementById('edit_id').value = groupId;
+                document.getElementById('edit_group_name').value = groupName;
+                document.getElementById('edit_curator').value = curator;
+            }
+        });
+    });
+
+    // Отображение уведомлений из сессии
     <?php
-    // Проверяем, есть ли уведомление в сессии
     if (isset($_SESSION['notification'])) {
         $notification = $_SESSION['notification'];
         echo "document.addEventListener('DOMContentLoaded', function() {
@@ -416,34 +496,6 @@ function setNotification($message, $type = 'success') {
         unset($_SESSION['notification']);
     }
     ?>
-
-    // Поиск по группам
-    document.querySelector('.search-bar').addEventListener('input', function(e) {
-        const searchText = e.target.value.toLowerCase();
-        document.querySelectorAll('.group-card').forEach(card => {
-            const groupName = card.querySelector('h5').textContent.toLowerCase();
-            const department = card.querySelector('.bx-building')?.nextElementSibling?.textContent.toLowerCase() || '';
-            
-            if (groupName.includes(searchText) || department.includes(searchText)) {
-                card.closest('.col-md-4').style.display = '';
-            } else {
-                card.closest('.col-md-4').style.display = 'none';
-            }
-        });
-    });
-
-    // Функция для заполнения формы редактирования
-    document.querySelectorAll('.btn-outline-primary').forEach(button => {
-        button.addEventListener('click', function() {
-            const groupId = this.dataset.id;
-            const groupName = this.dataset.name;
-            const department = this.dataset.department;
-
-            document.getElementById('edit_id').value = groupId;
-            document.getElementById('edit_group_name').value = groupName;
-            document.getElementById('edit_department').value = department;
-        });
-    });
 </script>
 
 </body>
