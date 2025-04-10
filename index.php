@@ -17,79 +17,9 @@ function addAction($pdo, $user_id, $action) {
 
 
 
-// Обработка формы добавления студента
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_student'])) {
-    $name = $_POST['name'];
-    $group_id = $_POST['group_id'];
-    $brsm = isset($_POST['brsm']) ? 1 : 0;
-    $volunteer = isset($_POST['volunteer']) ? 1 : 0;
-
-    $sql = "INSERT INTO students (name, group_id, brsm, volunteer) VALUES (?, ?, ?, ?)";
-    $stmt = $pdo->prepare($sql);
-    $stmt->execute([$name, $group_id, $brsm, $volunteer]);
-
-    // Расширенная запись действия добавления студента
-    addAction($pdo, $_SESSION['user_id'], 'Добавление записи в таблицу студентов: ' . $name . ' (Группа: ' . $group_id . ')');
-
-    header('Location: index.php');
-    exit;
-}
-
-// Обработка удаления студента
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_student'])) {
-    $student_id = $_POST['student_id'];
-
-    // Получаем имя студента перед удалением
-    $stmt = $pdo->prepare("SELECT name, group_id FROM students WHERE id = ?");
-    $stmt->execute([$student_id]);
-    $student = $stmt->fetch(PDO::FETCH_ASSOC);
-
-    $sql = "DELETE FROM students WHERE id = ?";
-    $stmt = $pdo->prepare($sql);
-    $stmt->execute([$student_id]);
-
-    // Запись действия удаления студента
-    addAction($pdo, $_SESSION['user_id'], 'Удаление записи из таблицы студентов: ' . $student['name'] . ' (Группа: ' . $student['group_id'] . ')');
-
-    header('Location: index.php');
-    exit;
-}
-
-// Обработка редактирования студента
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_student'])) {
-    $student_id = $_POST['student_id'];
-    $name = $_POST['name'];
-    $group_id = $_POST['group_id'];
-    $brsm = isset($_POST['brsm']) ? 1 : 0;
-    $volunteer = isset($_POST['volunteer']) ? 1 : 0;
-
-    // Получаем текущие данные студента
-    $stmt = $pdo->prepare("SELECT * FROM students WHERE id = ?");
-    $stmt->execute([$student_id]);
-    $oldStudent = $stmt->fetch(PDO::FETCH_ASSOC);
-
-    $sql = "UPDATE students SET name = ?, group_id = ?, brsm = ?, volunteer = ? WHERE id = ?";
-    $stmt = $pdo->prepare($sql);
-    $stmt->execute([$name, $group_id, $brsm, $volunteer, $student_id]);
-
-    // Создаем текст изменений
-    $changes = [];
-    if ($oldStudent['name'] !== $name) $changes[] = 'ФИО';
-    if ($oldStudent['group_id'] !== $group_id) $changes[] = 'Группа';
-    if ($oldStudent['brsm'] != $brsm) $changes[] = 'Статус БРСМ';
-    if ($oldStudent['volunteer'] != $volunteer) $changes[] = 'Статус волонтера';
-
-    if (!empty($changes)) {
-        $changeText = implode(', ', $changes);
-        addAction($pdo, $_SESSION['user_id'], 'Изменение записи в таблице студентов: ' . $name . ' (Измененные поля: ' . $changeText . ')');
-    }
-
-    header('Location: index.php');
-    exit;
-}
 
 // Получение списка студентов
-$sql = "SELECT students.id, students.name, students.group_id, 
+$sql = "SELECT students.id, students.name, students.group_name, 
                (CASE WHEN brsm.student_id IS NOT NULL THEN 1 ELSE 0 END) AS brsm,
                students.volunteer
         FROM students 

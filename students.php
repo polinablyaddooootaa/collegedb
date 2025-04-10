@@ -9,12 +9,14 @@ require_once 'db_operations.php';
 include('functions.php');
 
 
-// Получение списка студентов
-$sql = "SELECT * FROM students";
+// Получаем список студентов с информацией о группах
+$sql = "SELECT students.*, `groups`.group_name 
+        FROM students 
+        LEFT JOIN `groups` ON students.group_id = `groups`.id
+        ORDER BY students.id";
 $stmt = $pdo->prepare($sql);
 $stmt->execute();
 $students = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
 // Удаление студента
 if (isset($_GET['delete_student'])) {
     $id = $_GET['delete_student'];
@@ -24,12 +26,12 @@ if (isset($_GET['delete_student'])) {
     header("Location: students.php");
     exit;
 }
-
-// Получаем список студентов из базы
-$sql = "SELECT * FROM students";
+// Получение списка групп
+$sql = "SELECT * FROM `groups` ORDER BY group_name";
 $stmt = $pdo->prepare($sql);
 $stmt->execute();
-$students = $stmt->fetchAll(PDO::FETCH_ASSOC);
+$groups = $stmt->fetchAll(PDO::FETCH_ASSOC);
+// Получаем список студентов из базы
 
 function getBrsmStatus($student_id, $pdo) {
     $sql = "SELECT COUNT(*) FROM brsm WHERE student_id = ?";
@@ -44,6 +46,7 @@ function getVolunteerStatus($student_id, $pdo) {
     $stmt->execute([$student_id]);
     return $stmt->fetchColumn() > 0 ? 'Активен' : 'Не участвует';
 }
+
 // Функция для установки сообщения уведомления
 function setNotification($message, $type = 'success') {
     $_SESSION['notification'] = [
@@ -51,6 +54,7 @@ function setNotification($message, $type = 'success') {
         'type' => $type
     ];
 }
+
 ?>
 
 <!DOCTYPE html>
@@ -64,6 +68,9 @@ function setNotification($message, $type = 'success') {
     <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0-alpha1/css/bootstrap.min.css" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0-alpha1/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.7.0/chart.min.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.0.13/dist/css/select2.min.css" rel="stylesheet" />
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/select2@4.0.13/dist/js/select2.min.js"></script>
     <link rel="stylesheet" href="index.css"> <!-- Подключение стилей -->
     <link rel="icon" href="logo2.png" type="image/png">
     <style>
@@ -372,10 +379,18 @@ include('sidebar.php');  // Подключаем сайдбар после sessi
                         <label class="form-label">ФИО</label>
                         <input type="text" class="form-control" name="name" required>
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label">Группа</label>
-                        <input type="text" class="form-control" name="group_name" required>
-                    </div>
+                   <div class="mb-3">
+    <label class="form-label">Выберите группу</label>
+    <select class="form-select" name="group_id" required>
+        <option value="" disabled selected>Выберите группу</option>
+        <?php foreach ($groups as $group): ?>
+            <option value="<?= $group['id'] ?>">
+                <?= htmlspecialchars($group['group_name']) ?>
+            </option>
+        <?php endforeach; ?>
+    </select>
+</div>
+
                     <div class="mb-3 d-flex justify-content-between">
                         <div class="form-check">
                             <input class="form-check-input" type="checkbox" name="brsm">
@@ -392,6 +407,9 @@ include('sidebar.php');  // Подключаем сайдбар после sessi
         </div>
     </div>
 </div>
+
+
+
 
 
 <!-- Модальное окно редактирования студента -->
@@ -525,7 +543,13 @@ function showNotification(message, type = 'success') {
         }, 500); // Wait for fade out animation to complete
     }, 5000);
 }
-
+$(document).ready(function() {
+    $('#groupSelect').select2({
+        width: '100%',
+        placeholder: "Выберите группу...",
+        allowClear: true
+    });
+});
 // Код для отображения уведомлений из сессии
 <?php
 // Проверяем, есть ли уведомление в сессии

@@ -111,24 +111,24 @@ $students = $stmt->fetchAll(PDO::FETCH_ASSOC);
             border-radius: 4px 4px 0 0;
         }
         .punishment-section {
-    background-color: #f8f9fa;
-    border-radius: 8px;
-    padding: 15px;
-    margin-bottom: 20px;
-}
+            background-color: #f8f9fa;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
 
-.punishment-section h5 {
-    margin-bottom: 15px;
-    color: #4946e5;
-}
+        .punishment-section h5 {
+            margin-bottom: 15px;
+            color: #4946e5;
+        }
 
-.selected-students {
-    border: 1px solid #dee2e6;
-    border-radius: 4px;
-    padding: 10px;
-    background-color: white;
-    margin-top: 10px;
-}
+        .selected-students {
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 10px;
+            background-color: white;
+            margin-top: 10px;
+        }
     </style>
 </head>
 <body>
@@ -167,6 +167,12 @@ $students = $stmt->fetchAll(PDO::FETCH_ASSOC);
             </div>
             <div class="modal-body">
                 <form id="generateOrderForm">
+                    <!-- Секция для выбора даты приказа -->
+                    <div class="form-group mb-3">
+                        <label for="orderDate">Дата приказа:</label>
+                        <input type="date" id="orderDate" class="form-control" value="<?php echo date('Y-m-d'); ?>">
+                    </div>
+
                     <!-- Секция для замечаний -->
                     <div class="punishment-section mb-4">
                         <h5>Замечание</h5>
@@ -228,6 +234,29 @@ $students = $stmt->fetchAll(PDO::FETCH_ASSOC);
                             <option value="систематические опоздания на учебные занятия">Систематические опоздания на учебные занятия</option>
                         </select>
                     </div>
+
+                    <!-- Секция для выбора месяца и года пропусков -->
+                    <div class="form-group mb-3">
+                        <label for="absenceMonth">Месяц пропуска:</label>
+                        <select id="absenceMonth" class="form-select">
+                            <option value="январе">Январь</option>
+                            <option value="феврале">Февраль</option>
+                            <option value="марте">Март</option>
+                            <option value="апреле">Апрель</option>
+                            <option value="мае">Май</option>
+                            <option value="июне">Июнь</option>
+                            <option value="июле">Июль</option>
+                            <option value="августе">Август</option>
+                            <option value="сентябре">Сентябрь</option>
+                            <option value="октябре">Октябрь</option>
+                            <option value="ноябре">Ноябрь</option>
+                            <option value="декабре">Декабрь</option>
+                        </select>
+                    </div>
+                    <div class="form-group mb-3">
+                        <label for="absenceYear">Год пропуска:</label>
+                        <input type="number" id="absenceYear" class="form-control" value="2025" min="2000" max="2100">
+                    </div>
                 </form>
             </div>
             <div class="modal-footer">
@@ -243,8 +272,6 @@ $students = $stmt->fetchAll(PDO::FETCH_ASSOC);
 let students = [];
 let selectedWarningStudentsIds = new Set();
 let selectedReprimandStudentsIds = new Set();
-const currentDate = "2025-03-17 16:51:03";
-const currentUser = "polinablyaddooootaa";
 
 $(document).ready(function() {
     students = <?php echo json_encode($students); ?>;
@@ -407,7 +434,11 @@ $(document).ready(function() {
 
 // Функция генерации приказа
 function generateOrder() {
-    const warningStudents = Array.from(selectedWarningStudentsIds).map(studentId => {
+    const orderDate = $('#orderDate').val();
+    const absenceMonth = $('#absenceMonth').val();
+    const absenceYear = $('#absenceYear').val();
+
+    const warningStudents = Array.from(selectedWarningStudentsIds).map((studentId, index) => {
         const student = students.find(s => s.id == studentId);
         const hours = $(`#hoursInput_warningHoursContainer_${student.id}`).val();
 
@@ -417,18 +448,18 @@ function generateOrder() {
         }
 
         return {
-            number: student.id,
+            number: index + 1,  // Sequential number
             name: student.name,
             group: student.group_name,
             reason: $('#reasonSelect').val(),
             hours: hours,
             punishmentType: 'ЗАМЕЧАНИЕ',
-            currentDate: currentDate,
-            currentUser: currentUser
+            month: absenceMonth,
+            year: absenceYear
         };
     });
 
-    const reprimandStudents = Array.from(selectedReprimandStudentsIds).map(studentId => {
+    const reprimandStudents = Array.from(selectedReprimandStudentsIds).map((studentId, index) => {
         const student = students.find(s => s.id == studentId);
         const hours = $(`#hoursInput_reprimandHoursContainer_${student.id}`).val();
 
@@ -438,14 +469,14 @@ function generateOrder() {
         }
 
         return {
-            number: student.id,
+            number: index + 1,  // Sequential number
             name: student.name,
             group: student.group_name,
             reason: $('#reasonSelect').val(),
             hours: hours,
             punishmentType: 'ВЫГОВОР',
-            currentDate: currentDate,
-            currentUser: currentUser
+            month: absenceMonth,
+            year: absenceYear
         };
     });
 
@@ -468,8 +499,8 @@ function generateOrder() {
             doc.setData({
                 warningStudents: warningStudents,
                 reprimandStudents: reprimandStudents,
-                currentDate: currentDate,
-                currentUser: currentUser
+                orderDate: orderDate,
+       
             });
 
             try {
@@ -491,4 +522,3 @@ function generateOrder() {
 
 </body>
 </html>
-

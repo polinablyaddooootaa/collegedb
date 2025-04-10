@@ -33,6 +33,9 @@
         <a href="achievements.php" class="nav-item <?php echo (basename($_SERVER['PHP_SELF']) == 'achievements.php') ? 'active' : ''; ?>">
             <i class='bx bx-trophy'></i> Достижения
         </a>
+        <a href="orders.php" class="nav-item <?php echo (basename($_SERVER['PHP_SELF']) == 'orders.php') ? 'active' : ''; ?>">
+            <i class='bx bx-trophy'></i> Приказы
+        </a>
 
         <?php if (isset($_SESSION['user_id'])): ?>
             <!-- Кнопка выхода -->

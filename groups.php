@@ -3,45 +3,50 @@ session_start();
 include('config.php');
 include('functions.php');
 
-// Получение списка групп с количеством студентов
-$sql = "SELECT g.id, g.group_name, g.curator, COUNT(s.id) as student_count 
-        FROM groups g 
-        LEFT JOIN students s ON g.id = s.group_id 
-        GROUP BY g.id, g.group_name, g.curator
-        ORDER BY g.group_name";
-$stmt = $pdo->prepare($sql);
-$stmt->execute();
-$groups = $stmt->fetchAll(PDO::FETCH_ASSOC);
+try {
+    // Получение списка групп с количеством студентов и специальностей
+    $sql = "SELECT g.id, g.group_name, g.curator, COUNT(s.id) as student_count, sp.name as specialty_name
+            FROM `groups` g 
+            LEFT JOIN students s ON g.id = s.group_id 
+            LEFT JOIN specialties sp ON g.specialty_id = sp.id
+            GROUP BY g.id
+            ORDER BY g.group_name";
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute();
+    $groups = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-// Если выбрана группа для просмотра
-$selected_group = null;
-$group_students = [];
+    // Если выбрана группа для просмотра
+    $selected_group = null;
+    $group_students = [];
 
-if (isset($_GET['view_group'])) {
-    $group_name = $_GET['view_group'];
-    
-    // Получаем данные о группе
-    $group_sql = "SELECT * FROM groups WHERE group_name = ?";
-    $group_stmt = $pdo->prepare($group_sql);
-    $group_stmt->execute([$group_name]);
-    $selected_group = $group_stmt->fetch(PDO::FETCH_ASSOC);
-    
-    if ($selected_group) {
-        // Получаем студентов группы
-        $students_sql = "SELECT s.*, 
-                        (SELECT COUNT(*) FROM brsm WHERE student_id = s.id) as brsm_status,
-                        (SELECT COUNT(*) FROM volunteers WHERE student_id = s.id) as volunteer_status
-                        FROM students s 
-                        WHERE s.group_id = ?
-                        ORDER BY s.name";
-        $students_stmt = $pdo->prepare($students_sql);
-        $students_stmt->execute([$selected_group['id']]);
-        $group_students = $students_stmt->fetchAll(PDO::FETCH_ASSOC);
-    } else {
-        setNotification("Группа не найдена.", "error");
-        header("Location: groups.php");
-        exit;
+    if (isset($_GET['view_group']) && !empty($_GET['view_group'])) {
+        $group_name = $_GET['view_group'];
+
+        // Получаем данные о группе
+        $group_sql = "SELECT * FROM `groups` WHERE group_name = ?";
+        $group_stmt = $pdo->prepare($group_sql);
+        $group_stmt->execute([$group_name]);
+        $selected_group = $group_stmt->fetch(PDO::FETCH_ASSOC);
+
+        if ($selected_group) {
+            // Получаем студентов группы
+            $students_sql = "SELECT s.*, 
+                            (SELECT COALESCE(COUNT(*), 0) FROM brsm WHERE student_id = s.id) as brsm_status,
+                            (SELECT COALESCE(COUNT(*), 0) FROM volunteers WHERE student_id = s.id) as volunteer_status
+                            FROM students s 
+                            WHERE s.group_id = ?
+                            ORDER BY s.name";
+            $students_stmt = $pdo->prepare($students_sql);
+            $students_stmt->execute([$selected_group['id']]);
+            $group_students = $students_stmt->fetchAll(PDO::FETCH_ASSOC);
+        } else {
+            setNotification("Группа не найдена.", "error");
+            header("Location: groups.php");
+            exit;
+        }
     }
+} catch (PDOException $e) {
+    die("Ошибка выполнения запроса: " . $e->getMessage());
 }
 ?>
 
@@ -276,6 +281,52 @@ if (isset($_GET['view_group'])) {
                 <input type="text" class="search-bar" placeholder="Поиск...">
             </div>
         </header>
+   <!-- Значок настроек -->
+<div class="settings-icon">
+    <i class='bx bx-cog' data-bs-toggle="modal" data-bs-target="#settingsModal"></i>
+</div>
+
+<!-- Модальное окно настроек -->
+<div class="modal fade" id="settingsModal" tabindex="-1" aria-labelledby="settingsModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="settingsModalLabel">Настройки</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form method="POST" action="db_operations.php">
+                    <input type="hidden" name="action" value="add_specialty">
+                    <div class="mb-3">
+                        <label class="form-label">Название специальности</label>
+                        <input type="text" class="form-control" name="specialty_name" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary w-100">Добавить специальность</button>
+                </form>
+                <hr>
+                <form method="POST" action="db_operations.php">
+                    <input type="hidden" name="action" value="add_subject">
+                    <div class="mb-3">
+                        <label class="form-label">Название учебного предмета</label>
+                        <input type="text" class="form-control" name="subject_name" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Специальность</label>
+                        <select class="form-select" name="specialty_id" required>
+                            <?php
+                            $specialties = $pdo->query("SELECT * FROM specialties")->fetchAll(PDO::FETCH_ASSOC);
+                            foreach ($specialties as $specialty) {
+                                echo "<option value=\"" . htmlspecialchars($specialty['id']) . "\">" . htmlspecialchars($specialty['name']) . "</option>";
+                            }
+                            ?>
+                        </select>
+                    </div>
+                    <button type="submit" class="btn btn-primary w-100">Добавить учебный предмет</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
 
         <?php if ($selected_group): ?>
             <!-- Отображение студентов выбранной группы -->
@@ -339,6 +390,7 @@ if (isset($_GET['view_group'])) {
                             <th>ID</th>
                             <th>Название группы</th>
                             <th>Куратор</th>
+                            <th>Специальность</th>
                             <th>Кол-во студентов</th>
                             <th>Действия</th>
                         </tr>
@@ -348,18 +400,20 @@ if (isset($_GET['view_group'])) {
                             <tr>
                                 <td><?= htmlspecialchars($group['id']) ?></td>
                                 <td>
-                                <a class="group-name" href="groups.php?view_group=<?= urlencode($group['group_name']) ?>">
-    <?= htmlspecialchars($group['group_name']) ?>
-</a>
+                                    <a class="group-name" href="groups.php?view_group=<?= urlencode($group['group_name']) ?>">
+                                        <?= htmlspecialchars($group['group_name']) ?>
+                                    </a>
                                 </td>
                                 <td><?= htmlspecialchars($group['curator']) ?></td>
+                                <td><?= htmlspecialchars($group['specialty_name']) ?></td>
                                 <td><?= htmlspecialchars($group['student_count']) ?></td>
                                 <td>
                                     <button class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" 
                                             data-bs-target="#editGroupModal"
                                             data-id="<?= $group['id'] ?>"
                                             data-name="<?= htmlspecialchars($group['group_name']) ?>"
-                                            data-curator="<?= htmlspecialchars($group['curator']) ?>">
+                                            data-curator="<?= htmlspecialchars($group['curator']) ?>"
+                                            data-specialty="<?= htmlspecialchars($group['specialty_name']) ?>">
                                         <i class='bx bx-edit-alt'></i>
                                     </button>
                                     <a class="btn btn-outline-danger btn-sm" href="groups.php?delete_group=<?= $group['id'] ?>" 
@@ -385,7 +439,7 @@ if (isset($_GET['view_group'])) {
             </div>
             <div class="modal-body">
                 <form method="POST" action="db_operations.php">
-                    <input type="hidden" name="add_group" value="1">
+                    <input type="hidden" name="action" value="add_group">
                     <div class="mb-3">
                         <label class="form-label">Название группы</label>
                         <input type="text" class="form-control" name="group_name" required>
@@ -393,6 +447,17 @@ if (isset($_GET['view_group'])) {
                     <div class="mb-3">
                         <label class="form-label">Куратор</label>
                         <input type="text" class="form-control" name="curator" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Специальность</label>
+                        <select class="form-select" name="specialty_id" required>
+                            <?php
+                            $specialties = $pdo->query("SELECT * FROM specialties")->fetchAll(PDO::FETCH_ASSOC);
+                            foreach ($specialties as $specialty) {
+                                echo "<option value=\"" . htmlspecialchars($specialty['id']) . "\">" . htmlspecialchars($specialty['name']) . "</option>";
+                            }
+                            ?>
+                        </select>
                     </div>
                     <button type="submit" class="btn btn-primary w-100">Добавить</button>
                 </form>
@@ -411,7 +476,7 @@ if (isset($_GET['view_group'])) {
             </div>
             <div class="modal-body">
                 <form method="POST" action="db_operations.php">
-                    <input type="hidden" name="edit_group" value="1">
+                    <input type="hidden" name="action" value="edit_group">
                     <input type="hidden" id="edit_id" name="id">
                     <div class="mb-3">
                         <label class="form-label">Название группы</label>
@@ -420,6 +485,16 @@ if (isset($_GET['view_group'])) {
                     <div class="mb-3">
                         <label class="form-label">Куратор</label>
                         <input type="text" class="form-control" id="edit_curator" name="curator" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Специальность</label>
+                        <select class="form-select" id="edit_specialty_id" name="specialty_id" required>
+                            <?php
+                            foreach ($specialties as $specialty) {
+                                echo "<option value=\"" . htmlspecialchars($specialty['id']) . "\">" . htmlspecialchars($specialty['name']) . "</option>";
+                            }
+                            ?>
+                        </select>
                     </div>
                     <button type="submit" class="btn btn-primary w-100">Сохранить изменения</button>
                 </form>
@@ -483,18 +558,17 @@ if (isset($_GET['view_group'])) {
             }
         });
     });
-
-    // Отображение уведомлений из сессии
-    <?php
-    if (isset($_SESSION['notification'])) {
-        $notification = $_SESSION['notification'];
-        echo "document.addEventListener('DOMContentLoaded', function() {
-            showNotification('" . addslashes($notification['message']) . "', '" . $notification['type'] . "');
-        });";
-        
-        // Удаляем уведомление из сессии после отображения
-        unset($_SESSION['notification']);
-    }
+ // Отображение уведомлений из сессии
+ <?php
+           if (isset($_SESSION['notification'])) {
+            $notification = $_SESSION['notification'];
+            echo "document.addEventListener('DOMContentLoaded', function() {
+                showNotification('" . addslashes($notification['message']) . "', '" . $notification['type'] . "');
+            });";
+            
+            // Удаляем уведомление из сессии после отображения
+            unset($_SESSION['notification']);
+        }
     ?>
 </script>
 
