@@ -2,49 +2,156 @@
 session_start();
 include('config.php');
 include('functions.php');
+if (isset($_GET['view_group']) && !empty($_GET['view_group'])) {
+    $group_name = $_GET['view_group'];
 
+    // Получаем данные о группе
+    $group_sql = "SELECT * FROM `groups` WHERE group_name = ?";
+    $group_stmt = $pdo->prepare($group_sql);
+    $group_stmt->execute([$group_name]);
+    $selected_group = $group_stmt->fetch(PDO::FETCH_ASSOC);
+
+    if ($selected_group) {
+        // Получаем студентов группы
+        $students_sql = "SELECT s.*, 
+                        (SELECT COALESCE(COUNT(*), 0) FROM brsm WHERE student_id = s.id) as brsm_status,
+                        (SELECT COALESCE(COUNT(*), 0) FROM volunteers WHERE student_id = s.id) as volunteer_status
+                        FROM students s 
+                        WHERE s.group_id = ?
+                        ORDER BY s.name";
+        $students_stmt = $pdo->prepare($students_sql);
+        $students_stmt->execute([$selected_group['id']]);
+        $group_students = $students_stmt->fetchAll(PDO::FETCH_ASSOC);
+    } else {
+        setNotification("Группа не найдена.", "error");
+        header("Location: groups.php");
+        exit;
+    }
+}
 try {
-    // Получение списка групп с количеством студентов и специальностей
+    // Проверка, если выбран конкретный студент для просмотра
+    if (isset($_GET['view_student']) && !empty($_GET['view_student'])) {
+        $student_id = $_GET['view_student'];
+
+        // Получение информации о студенте
+        $student_sql = "SELECT s.*, g.group_name 
+                        FROM students s
+                        LEFT JOIN `groups` g ON s.group_id = g.id
+                        WHERE s.id = ?";
+        $student_stmt = $pdo->prepare($student_sql);
+        $student_stmt->execute([$student_id]);
+        $student = $student_stmt->fetch(PDO::FETCH_ASSOC);
+
+        if ($student) {
+            // Получение уведомлений
+            $notifications_sql = "SELECT * FROM notifications 
+                                 WHERE student_id = ? 
+                                 ORDER BY date_sent DESC";
+            $notifications_stmt = $pdo->prepare($notifications_sql);
+            $notifications_stmt->execute([$student_id]);
+            $notifications = $notifications_stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            // Отображение только профиля студента
+            ?>
+            <!DOCTYPE html>
+            <html lang="ru">
+            <head>
+                <meta charset="UTF-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <title>Профиль студента</title>
+                <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0-alpha1/css/bootstrap.min.css" rel="stylesheet">
+                <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0-alpha1/js/bootstrap.bundle.min.js"></script>
+                <link rel="stylesheet" href="index.css"> <!-- Подключение стилей -->
+                <style>
+                    body, html {
+                        margin: 0;
+                        font-family: 'Inter', sans-serif;
+                        background-color: #f4f7fc;
+                    }
+                    .container {
+                        margin: 20px auto;
+                        max-width: 800px;
+                        background-color: white;
+                        padding: 20px;
+                        border-radius: 8px;
+                        box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.1);
+                    }
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <a href="groups.php" class="btn btn-outline-secondary mb-4">
+                        <i class='bx bx-arrow-back'></i> Назад к группам
+                    </a>
+                    <h2 class="mb-3">Профиль студента: <?= htmlspecialchars($student['name']) ?></h2>
+                    
+                 
+                    
+                    <!-- Уведомления -->
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h5 class="mb-0">История уведомлений</h5>
+                        </div>
+                        <div class="card-body">
+                            <?php if (count($notifications) > 0): ?>
+                                <div class="table-responsive">
+                                    <table class="table table-hover">
+                                        <thead>
+                                            <tr>
+                                                <th>Дата отправки</th>
+                                                <th>Тип</th>
+                                                <th>Содержание</th>
+                                                <th>Создано</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <?php foreach ($notifications as $notification): ?>
+                                                <tr>
+                                                    <td><?= htmlspecialchars(date('d.m.Y', strtotime($notification['date_sent']))) ?></td>
+                                                    <td>
+                                                        <?php 
+                                                        $type_label = '';
+                                                        switch ($notification['type']) {
+                                                            case 'absence':
+                                                                $type_label = '<span class="badge bg-danger">Пропуски</span>';
+                                                                break;
+                                                            default:
+                                                                $type_label = '<span class="badge bg-secondary">Другое</span>';
+                                                        }
+                                                        echo $type_label;
+                                                        ?>
+                                                    </td>
+                                                    <td><?= nl2br(htmlspecialchars($notification['content'])) ?></td>
+                                                    <td><?= htmlspecialchars($notification['created_by']) ?></td>
+                                                </tr>
+                                            <?php endforeach; ?>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            <?php else: ?>
+                                <p class="text-muted mb-0">Уведомлений не найдено.</p>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+                </div>
+            </body>
+            </html>
+            <?php
+            exit; // Прекращаем выполнение, чтобы остальной код не рендерился
+        }
+    }
+
+    // Обычная логика для отображения групп
     $sql = "SELECT g.id, g.group_name, g.curator, g.course, COUNT(s.id) as student_count, sp.name as specialty_name
-    FROM `groups` g 
-    LEFT JOIN students s ON g.id = s.group_id 
-    LEFT JOIN specialties sp ON g.specialty_id = sp.id
-    GROUP BY g.id
-    ORDER BY g.group_name";
+            FROM `groups` g 
+            LEFT JOIN students s ON g.id = s.group_id 
+            LEFT JOIN specialties sp ON g.specialty_id = sp.id
+            GROUP BY g.id
+            ORDER BY g.group_name";
     $stmt = $pdo->prepare($sql);
     $stmt->execute();
     $groups = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-    // Если выбрана группа для просмотра
-    $selected_group = null;
-    $group_students = [];
-
-    if (isset($_GET['view_group']) && !empty($_GET['view_group'])) {
-        $group_name = $_GET['view_group'];
-
-        // Получаем данные о группе
-        $group_sql = "SELECT * FROM `groups` WHERE group_name = ?";
-        $group_stmt = $pdo->prepare($group_sql);
-        $group_stmt->execute([$group_name]);
-        $selected_group = $group_stmt->fetch(PDO::FETCH_ASSOC);
-
-        if ($selected_group) {
-            // Получаем студентов группы
-            $students_sql = "SELECT s.*, 
-                            (SELECT COALESCE(COUNT(*), 0) FROM brsm WHERE student_id = s.id) as brsm_status,
-                            (SELECT COALESCE(COUNT(*), 0) FROM volunteers WHERE student_id = s.id) as volunteer_status
-                            FROM students s 
-                            WHERE s.group_id = ?
-                            ORDER BY s.name";
-            $students_stmt = $pdo->prepare($students_sql);
-            $students_stmt->execute([$selected_group['id']]);
-            $group_students = $students_stmt->fetchAll(PDO::FETCH_ASSOC);
-        } else {
-            setNotification("Группа не найдена.", "error");
-            header("Location: groups.php");
-            exit;
-        }
-    }
 } catch (PDOException $e) {
     die("Ошибка выполнения запроса: " . $e->getMessage());
 }
@@ -351,28 +458,28 @@ try {
 <td><?= htmlspecialchars($group['course']) ?></td>
                         </thead>
                         <tbody>
-                            <?php foreach ($group_students as $student): ?>
-                                <tr>
-                                    <td><?= htmlspecialchars($student['id']) ?></td>
-                                    <td><?= htmlspecialchars($student['name']) ?></td>
-                                    <td>
-                                        <span class="status-badge <?= $student['brsm_status'] > 0 ? 'status-yes' : 'status-no' ?>">
-                                            <?= $student['brsm_status'] > 0 ? 'Состоит' : 'Не состоит' ?>
-                                        </span>
-                                    </td>
-                                    <td>
-                                        <span class="status-badge <?= $student['volunteer_status'] > 0 ? 'status-yes' : 'status-neutral' ?>">
-                                            <?= $student['volunteer_status'] > 0 ? 'Активен' : 'Не участвует' ?>
-                                        </span>
-                                    </td>
-                                    <td>
-                                        <a href="students.php" class="btn btn-outline-primary btn-sm">
-                                            <i class='bx bx-user-circle'></i> Профиль
-                                        </a>
-                                    </td>
-                                </tr>
-                            <?php endforeach; ?>
-                        </tbody>
+    <?php foreach ($group_students as $student): ?>
+        <tr>
+            <td><?= htmlspecialchars($student['id']) ?></td>
+            <td><?= htmlspecialchars($student['name']) ?></td>
+            <td>
+                <span class="status-badge <?= $student['brsm_status'] > 0 ? 'status-yes' : 'status-no' ?>">
+                    <?= $student['brsm_status'] > 0 ? 'Состоит' : 'Не состоит' ?>
+                </span>
+            </td>
+            <td>
+                <span class="status-badge <?= $student['volunteer_status'] > 0 ? 'status-yes' : 'status-neutral' ?>">
+                    <?= $student['volunteer_status'] > 0 ? 'Активен' : 'Не участвует' ?>
+                </span>
+            </td>
+            <td>
+                <a href="groups.php?view_student=<?= $student['id'] ?>" class="btn btn-outline-primary btn-sm">
+                    <i class='bx bx-user-circle'></i> Профиль
+                </a>
+            </td>
+        </tr>
+    <?php endforeach; ?>
+</tbody>
                     </table>
                 <?php else: ?>
                     <div class="alert alert-info">В этой группе пока нет студентов.</div>

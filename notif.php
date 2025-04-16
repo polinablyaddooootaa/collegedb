@@ -541,7 +541,28 @@ $(document).ready(function() {
         // Счетчик для отслеживания прогресса
         let processedCount = 0;
         const totalCount = selectedStudents.length;
-        
+        function saveNotificationToDatabase(student, content, type) {
+    return $.ajax({
+        url: 'save_notification.php',
+        type: 'POST',
+        data: {
+            student_id: student.id,
+            content: content,
+            type: type,
+            date_sent: $('#notificationDate').val()
+        },
+        dataType: 'json'
+    });
+}
+const savePromises = selectedStudents.map(student => {
+    // Generate content similar to the preview text
+    let sexText = student.gender === 'male' ? 'Ваш сын' : 'Ваша дочь';
+    let sex2Text = student.gender === 'male' ? 'учащийся' : 'учащаяся';
+    
+    const content = `Сообщаем, что ${sexText}, ${student.name}, ${sex2Text} ${course} курса дневной формы получения образования специальности «${specialty}», допускает пропуски учебных занятий без уважительных причин. Рассматривается вопрос о применении меры дисциплинарного взыскания.`;
+    
+    return saveNotificationToDatabase(student, content, 'absence');
+});
         // Обработка для каждого студента
         selectedStudents.forEach(student => {
             // Формирование текста в зависимости от пола
@@ -567,7 +588,13 @@ $(document).ready(function() {
             // Используем шаблон из кэша
             const zipData = new PizZip(templateCache);
             const doc = new Docxtemplater(zipData);
-            
+            Promise.all(savePromises)
+    .then(() => {
+        // Continue with zip generation
+    })
+    .catch(error => {
+        console.error('Error saving notifications:', error);
+    });
             doc.setData(templateData);
             
             try {

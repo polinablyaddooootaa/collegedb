@@ -428,6 +428,45 @@ $subjects = $stmt->fetchAll(PDO::FETCH_ASSOC);
     </div>
 
 <script>
+    function saveNotificationToDatabase(studentId, content, notificationDate) {
+    return $.ajax({
+        url: 'save_notification.php',
+        type: 'POST',
+        data: {
+            student_id: studentId,
+            notification_date: notificationDate,
+            content: content,
+        },
+        dataType: 'json',
+    }).done(function(response) {
+        if (response.status === 'success') {
+            console.log('Уведомление успешно сохранено');
+        } else {
+            console.error('Ошибка сохранения уведомления:', response.message);
+        }
+    }).fail(function(error) {
+        console.error('Ошибка AJAX при сохранении уведомления:', error);
+    });
+}
+
+// Пример вызова при генерации уведомления
+$('#generateBtn').on('click', function() {
+    if (currentStudentIndex < 0 || !selectedStudents.length) {
+        alert('Пожалуйста, выберите студента');
+        return;
+    }
+    
+    const student = selectedStudents[currentStudentIndex];
+    const notificationDate = $('#notificationDate').val();
+    const content = $('#preview-content').text();
+
+    if (!content) {
+        alert('Уведомление пустое');
+        return;
+    }
+
+    saveNotificationToDatabase(student.id, content, notificationDate);
+});
 $(document).ready(function() {
     let selectedStudents = [];
     let currentStudentIndex = -1;
@@ -892,6 +931,7 @@ $('#studentsList .student-item').on('click', function() {
             });
     });
 });
+
 </script>
 
 </body>
