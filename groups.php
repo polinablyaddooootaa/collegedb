@@ -5,12 +5,12 @@ include('functions.php');
 
 try {
     // Получение списка групп с количеством студентов и специальностей
-    $sql = "SELECT g.id, g.group_name, g.curator, COUNT(s.id) as student_count, sp.name as specialty_name
-            FROM `groups` g 
-            LEFT JOIN students s ON g.id = s.group_id 
-            LEFT JOIN specialties sp ON g.specialty_id = sp.id
-            GROUP BY g.id
-            ORDER BY g.group_name";
+    $sql = "SELECT g.id, g.group_name, g.curator, g.course, COUNT(s.id) as student_count, sp.name as specialty_name
+    FROM `groups` g 
+    LEFT JOIN students s ON g.id = s.group_id 
+    LEFT JOIN specialties sp ON g.specialty_id = sp.id
+    GROUP BY g.id
+    ORDER BY g.group_name";
     $stmt = $pdo->prepare($sql);
     $stmt->execute();
     $groups = $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -340,13 +340,15 @@ try {
                 <?php if (count($group_students) > 0): ?>
                     <table class="table table-hover">
                         <thead>
-                            <tr>
+                        <tr>
                                 <th>ID</th>
                                 <th>ФИО</th>
                                 <th>БРСМ</th>
                                 <th>Волонтер</th>
                                 <th>Действия</th>
                             </tr>
+<!-- В цикле foreach для вывода данных -->
+<td><?= htmlspecialchars($group['course']) ?></td>
                         </thead>
                         <tbody>
                             <?php foreach ($group_students as $student): ?>
@@ -408,14 +410,16 @@ try {
                                 <td><?= htmlspecialchars($group['specialty_name']) ?></td>
                                 <td><?= htmlspecialchars($group['student_count']) ?></td>
                                 <td>
-                                    <button class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" 
-                                            data-bs-target="#editGroupModal"
-                                            data-id="<?= $group['id'] ?>"
-                                            data-name="<?= htmlspecialchars($group['group_name']) ?>"
-                                            data-curator="<?= htmlspecialchars($group['curator']) ?>"
-                                            data-specialty="<?= htmlspecialchars($group['specialty_name']) ?>">
-                                        <i class='bx bx-edit-alt'></i>
-                                    </button>
+                                <button class="btn btn-outline-primary btn-sm" 
+        data-bs-toggle="modal" 
+        data-bs-target="#editGroupModal"
+        data-id="<?= $group['id'] ?>"
+        data-name="<?= htmlspecialchars($group['group_name']) ?>"
+        data-curator="<?= htmlspecialchars($group['curator']) ?>"
+        data-course="<?= htmlspecialchars($group['course']) ?>"
+        data-specialty="<?= htmlspecialchars($group['specialty_name']) ?>">
+    <i class='bx bx-edit-alt'></i>
+</button>
                                     <a class="btn btn-outline-danger btn-sm" href="groups.php?delete_group=<?= $group['id'] ?>" 
                                     onclick="return confirm('Вы уверены, что хотите удалить группу?')">
                                         <i class='bx bx-trash'></i>
@@ -448,6 +452,15 @@ try {
                         <label class="form-label">Куратор</label>
                         <input type="text" class="form-control" name="curator" required>
                     </div>
+                    <div class="mb-3">
+    <label class="form-label">Курс</label>
+    <select class="form-select" name="course" required>
+        <option value="1">1 курс</option>
+        <option value="2">2 курс</option>
+        <option value="3">3 курс</option>
+        <option value="4">4 курс</option>
+    </select>
+</div>
                     <div class="mb-3">
                         <label class="form-label">Специальность</label>
                         <select class="form-select" name="specialty_id" required>
@@ -486,6 +499,15 @@ try {
                         <label class="form-label">Куратор</label>
                         <input type="text" class="form-control" id="edit_curator" name="curator" required>
                     </div>
+                    <div class="mb-3">
+    <label class="form-label">Курс</label>
+    <select class="form-select" id="edit_course" name="course" required>
+        <option value="1">1 курс</option>
+        <option value="2">2 курс</option>
+        <option value="3">3 курс</option>
+        <option value="4">4 курс</option>
+    </select>
+</div>
                     <div class="mb-3">
                         <label class="form-label">Специальность</label>
                         <select class="form-select" id="edit_specialty_id" name="specialty_id" required>
@@ -545,19 +567,22 @@ try {
     });
 
     // Заполнение формы редактирования
-    document.querySelectorAll('.btn-outline-primary').forEach(button => {
-        button.addEventListener('click', function() {
-            if (this.dataset.id) {
-                const groupId = this.dataset.id;
-                const groupName = this.dataset.name;
-                const curator = this.dataset.curator;
+// Заполнение формы редактирования
+document.querySelectorAll('.btn-outline-primary').forEach(button => {
+    button.addEventListener('click', function() {
+        if (this.dataset.id) {
+            const groupId = this.dataset.id;
+            const groupName = this.dataset.name;
+            const curator = this.dataset.curator;
+            const course = this.dataset.course; // Добавить получение курса
 
-                document.getElementById('edit_id').value = groupId;
-                document.getElementById('edit_group_name').value = groupName;
-                document.getElementById('edit_curator').value = curator;
-            }
-        });
+            document.getElementById('edit_id').value = groupId;
+            document.getElementById('edit_group_name').value = groupName;
+            document.getElementById('edit_curator').value = curator;
+            document.getElementById('edit_course').value = course; // Установить значение курса
+        }
     });
+});
  // Отображение уведомлений из сессии
  <?php
            if (isset($_SESSION['notification'])) {

@@ -104,60 +104,62 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         }
     }
 
-    // Добавление новой группы
-    if (isset($_POST['action']) && $_POST['action'] == 'add_group') {
-        $group_name = $_POST['group_name'];
-        $curator = $_POST['curator'];
-        $specialty_id = $_POST['specialty_id'];
+// Добавление новой группы
+if (isset($_POST['action']) && $_POST['action'] == 'add_group') {
+    $group_name = $_POST['group_name'];
+    $curator = $_POST['curator'];
+    $specialty_id = $_POST['specialty_id'];
+    $course = $_POST['course']; // Добавляем получение курса
 
-        if (!empty($group_name) && !empty($curator) && !empty($specialty_id)) {
-            try {
-                $sql = "INSERT INTO `groups` (group_name, curator, specialty_id) VALUES (?, ?, ?)";
-                $stmt = $pdo->prepare($sql);
-                $stmt->execute([$group_name, $curator, $specialty_id]);
+    if (!empty($group_name) && !empty($curator) && !empty($specialty_id) && !empty($course)) {
+        try {
+            $sql = "INSERT INTO `groups` (group_name, curator, specialty_id, course) VALUES (?, ?, ?, ?)";
+            $stmt = $pdo->prepare($sql);
+            $stmt->execute([$group_name, $curator, $specialty_id, $course]);
 
-                setNotification("Группа успешно добавлена.", "success");
-                header("Location: groups.php");
-                exit();
-            } catch (PDOException $e) {
-                setNotification("Ошибка при добавлении группы: " . $e->getMessage(), "error");
-                header("Location: groups.php");
-                exit();
-            }
-        } else {
-            setNotification("Необходимо указать название группы, куратора и специальность.", "error");
+            setNotification("Группа успешно добавлена.", "success");
+            header("Location: groups.php");
+            exit();
+        } catch (PDOException $e) {
+            setNotification("Ошибка при добавлении группы: " . $e->getMessage(), "error");
             header("Location: groups.php");
             exit();
         }
+    } else {
+        setNotification("Необходимо указать название группы, куратора, специальность и курс.", "error");
+        header("Location: groups.php");
+        exit();
     }
+}
 
-    // Редактирование существующей группы
-    if (isset($_POST['action']) && $_POST['action'] == 'edit_group') {
-        $group_id = $_POST['id'];
-        $group_name = $_POST['group_name'];
-        $curator = $_POST['curator'];
-        $specialty_id = $_POST['specialty_id'];
+// Редактирование существующей группы
+if (isset($_POST['action']) && $_POST['action'] == 'edit_group') {
+    $group_id = $_POST['id'];
+    $group_name = $_POST['group_name'];
+    $curator = $_POST['curator'];
+    $specialty_id = $_POST['specialty_id'];
+    $course = $_POST['course']; // Добавляем получение курса
 
-        if (!empty($group_id) && !empty($group_name) && !empty($curator) && !empty($specialty_id)) {
-            try {
-                $sql = "UPDATE `groups` SET group_name = ?, curator = ?, specialty_id = ? WHERE id = ?";
-                $stmt = $pdo->prepare($sql);
-                $stmt->execute([$group_name, $curator, $specialty_id, $group_id]);
+    if (!empty($group_id) && !empty($group_name) && !empty($curator) && !empty($specialty_id) && !empty($course)) {
+        try {
+            $sql = "UPDATE `groups` SET group_name = ?, curator = ?, specialty_id = ?, course = ? WHERE id = ?";
+            $stmt = $pdo->prepare($sql);
+            $stmt->execute([$group_name, $curator, $specialty_id, $course, $group_id]);
 
-                setNotification("Группа успешно обновлена.", "success");
-                header("Location: groups.php");
-                exit();
-            } catch (PDOException $e) {
-                setNotification("Ошибка при обновлении группы: " . $e->getMessage(), "error");
-                header("Location: groups.php");
-                exit();
-            }
-        } else {
-            setNotification("Необходимо указать ID группы, название группы, куратора и специальность.", "error");
+            setNotification("Группа успешно обновлена.", "success");
+            header("Location: groups.php");
+            exit();
+        } catch (PDOException $e) {
+            setNotification("Ошибка при обновлении группы: " . $e->getMessage(), "error");
             header("Location: groups.php");
             exit();
         }
+    } else {
+        setNotification("Необходимо указать ID группы, название группы, куратора, специальность и курс.", "error");
+        header("Location: groups.php");
+        exit();
     }
+}
 
     // Добавление новой специальности
     if (isset($_POST['action']) && $_POST['action'] == 'add_specialty') {
