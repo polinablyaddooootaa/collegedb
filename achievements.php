@@ -128,6 +128,7 @@ $achievements = $stmt->fetchAll(PDO::FETCH_ASSOC);
     <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0-alpha1/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.7.0/chart.min.js"></script>
     <link rel="stylesheet" href="index.css">
+    <link rel="stylesheet" href="style.css"> <!-- Подключение стилей -->
     <link rel="icon" href="logo2.png" type="image/png">
     
     <style>

@@ -2,12 +2,10 @@
 
 session_start();
 
-
 // Подключаем конфигурацию и операции с базой данных
 include('config.php');
 require_once 'db_operations.php';
 include('functions.php');
-
 
 // Получаем список студентов с информацией о группах
 $sql = "SELECT students.*, `groups`.group_name 
@@ -17,6 +15,7 @@ $sql = "SELECT students.*, `groups`.group_name
 $stmt = $pdo->prepare($sql);
 $stmt->execute();
 $students = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
 // Удаление студента
 if (isset($_GET['delete_student'])) {
     $id = $_GET['delete_student'];
@@ -26,12 +25,12 @@ if (isset($_GET['delete_student'])) {
     header("Location: students.php");
     exit;
 }
+
 // Получение списка групп
 $sql = "SELECT * FROM `groups` ORDER BY group_name";
 $stmt = $pdo->prepare($sql);
 $stmt->execute();
 $groups = $stmt->fetchAll(PDO::FETCH_ASSOC);
-// Получаем список студентов из базы
 
 function getBrsmStatus($student_id, $pdo) {
     $sql = "SELECT COUNT(*) FROM brsm WHERE student_id = ?";
@@ -47,13 +46,7 @@ function getVolunteerStatus($student_id, $pdo) {
     return $stmt->fetchColumn() > 0 ? 'Активен' : 'Не участвует';
 }
 
-// Функция для установки сообщения уведомления
-function setNotification($message, $type = 'success') {
-    $_SESSION['notification'] = [
-        'message' => $message,
-        'type' => $type
-    ];
-}
+
 
 ?>
 
@@ -69,257 +62,56 @@ function setNotification($message, $type = 'success') {
     <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0-alpha1/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.7.0/chart.min.js"></script>
     <link href="https://cdn.jsdelivr.net/npm/select2@4.0.13/dist/css/select2.min.css" rel="stylesheet" />
-<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/select2@4.0.13/dist/js/select2.min.js"></script>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.0.13/dist/js/select2.min.js"></script>
     <link rel="stylesheet" href="index.css"> <!-- Подключение стилей -->
+    <link rel="stylesheet" href="style.css"> <!-- Подключение стилей -->
     <link rel="icon" href="logo2.png" type="image/png">
-    <style>
-        body, html {
-            margin: 0;
-            font-family: 'Inter', sans-serif;
-            background-color: #f4f7fc;
-        }
-        .wrapper {
-            display: flex;
-            height: 100vh;
-        }
-        /* Стили для уведомлений */
-.notification {
-    position: fixed;
-    bottom: 20px;
-    left: 20px;
-    background-color: white;
-    border-radius: 10px;
-    padding: 15px;
-    min-width: 300px;
-    display: flex;
-    align-items: center;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-    transform: translateY(100px);
-    opacity: 0;
-    transition: all 0.5s ease;
-    z-index: 1050;
-}
-
-.notification.show {
-    transform: translateY(0);
-    opacity: 1;
-}
-
-.notification-success {
-    border-left: 4px solid #28a745;
-}
-
-.notification-error {
-    border-left: 4px solid #dc3545;
-}
-
-.notification-info {
-    border-left: 4px solid #17a2b8;
-}
-
-.notification-icon {
-    margin-right: 15px;
-    font-size: 1.5rem;
-}
-
-.notification-success .notification-icon {
-    color: #28a745;
-}
-
-.notification-error .notification-icon {
-    color: #dc3545;
-}
-
-.notification-info .notification-icon {
-    color: #17a2b8;
-}
-
-.notification-message {
-    font-size: 14px;
-}
-        /* Стили для основного контента */
-        .content {
-            margin-left: 260px;
-            flex-grow: 1;
-            padding: 20px;
-            overflow-y: auto;
-        }
-        .top-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 2rem;
-        }
-        .date-container {
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            padding: 0.5rem 1rem;
-            background-color: white;
-            border-radius: 0.75rem;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-        }
-        .date-text, .time-text {
-            color: #64748b;
-        }
-        .table-container {
-            background-color: white;
-            border-radius: 10px;
-            padding: 20px;
-            box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.1);
-        }
-        .table th {
-            background-color: #f1f3f9;
-            text-transform: uppercase;
-        }
-        .status-badge {
-            padding: 5px 10px;
-            border-radius: 5px;
-            font-size: 0.9rem;
-            font-weight: bold;
-        }
-        .status-yes {
-            background-color: #d4edda;
-            color: #155724;
-        }
-        .status-no {
-            background-color: #f8d7da;
-            color: #721c24;
-        }
-        .status-neutral {
-            background-color: #fff3cd;
-            color: #856404;
-        }
-        .btn-add {
-            font-size: 1rem;
-            padding: 0.5rem 1.5rem;
-            background: linear-gradient(135deg, #4946e5 0%, #636ff1 100%);
-            border: none;
-            text-decoration: none;
-            border-radius: 15px;
-            margin-bottom: 20px;
-            color: white;
-        }
-        .btn-add:hover {
-            background: linear-gradient(135deg, #636ff1 0%, #4946e5 100%);
-        }
-        .modal-content {
-    border-radius: 1rem;
-    background-color: #ffffff;
-    border: none;
-}
-
-.modal-header {
-    border-bottom: 2px solid #f3f4f6;
-    padding: 1.25rem;
-    background-color: #f9fafb;
-}
-
-.modal-body {
-    padding: 1.5rem;
-}
-
-.form-control, .form-select {
-    border-radius: 0.5rem;
-    padding: 0.625rem;
-    border: 1px solid #e5e7eb;
-    background-color: #fafafa;
-}
-
-.form-control:focus, .form-select:focus {
-    border-color: #6366f1;
-    box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.1);
-}
-
-.form-check {
-    margin-bottom: 1rem;
-}
-
-.form-check-input {
-    border-radius: 0.375rem;
-    margin-right: 10px;
-}
-
-.form-check-label {
-    font-size: 16px;
-    font-weight: 500;
-    color: #4b5563;
-}
-
-.btn-primary {
-    background-color: #6366f1;
-    border-color: #6366f1;
-    font-weight: bold;
-    border-radius: 0.5rem;
-    padding: 0.75rem;
-    transition: background-color 0.3s, transform 0.3s;
-}
-
-
-
-.btn-close {
-    background-color: transparent;
-    border: none;
-    font-size: 1.25rem;
-    color: #6366f1;
-    transition: color 0.3s;
-}
-
-.btn-close:hover {
-    color: #4f46e5;
-}
-
-.d-flex .form-check {
-    flex: 1;
-    display: flex;
-    align-items: center;
-}
-
-.d-flex .form-check input {
-    margin-right: 10px;
-}
-
-    </style>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+  
 </head>
 <body>
 
-<?php
+<?php include('sidebar.php'); ?>
 
-include('sidebar.php');  // Подключаем сайдбар после session_start()
-?>
-
-
-    <!-- Основной контент -->
-    <div class="content">
-        <!-- Верхний заголовок -->
-        <header class="top-header">
+<div class="content">
+    <!-- Верхний заголовок -->
+    <header class="top-header">
         <div class="user-info">
-                    <i class='bx bx-user'></i>
-                    <span><?php echo htmlspecialchars($_SESSION['username']); ?></span> <!-- Имя пользователя из сессии -->
-                </div>
-            <div class="date-container">
-                <i class='bx bx-calendar'></i>
-                <span class="date-text"><?php echo date('m/d/Y'); ?></span>
-                <span class="time-text"><?php echo date('H:i'); ?></span>
+            <i class='bx bx-user'></i>
+            <span><?php echo htmlspecialchars($_SESSION['username']); ?></span>
+        </div>
+        <div class="date-container">
+            <i class='bx bx-calendar'></i>
+            <span class="date-text"><?php echo date('d.m.Y'); ?></span>
+            <i class='bx bx-time' style="margin-left: 10px;"></i>
+            <span class="time-text"><?php echo date('H:i'); ?></span>
+        </div>
+        <div class="search-container">
+            <input type="text" class="search-bar" id="studentSearch" placeholder="Поиск по студенту...">
+        </div>
+    </header>
+
+    <!-- Контейнер для таблицы студентов -->
+    <div class="table-container">
+        <div class="table-header">
+            <h2>Список студентов</h2>
+            <div class="btn-group">
+                <button class="btn-add btn-primary-custom" data-bs-toggle="modal" data-bs-target="#addStudentModal">
+                    <i class='bx bx-plus'></i> Добавить студента
+                </button>
+                <a href="export_excel.php" class="btn-add btn-success-custom" id="exportBtn">
+                    <i class='bx bx-download'></i> Экспорт в Excel
+                </a>
+                <button class="btn-add btn-info-custom" data-bs-toggle="modal" data-bs-target="#importModal">
+                    <i class='bx bx-upload'></i> Импорт из Excel
+                </button>
             </div>
-            <div class="search-container">
-                    <input type="text" class="search-bar" placeholder="Поиск по студенту...">
-                </div>
-        </header>
-
-        <!-- Контейнер для таблицы студентов -->
-        <div class="table-container">
-            <h2 class="mb-3">Список студентов</h2>
-            <button class="btn-add" data-bs-toggle="modal" data-bs-target="#addStudentModal">
-            <i class='bx bx-plus-circle me-1'></i> Добавить студента
-            </button>
-            <a href="export_excel.php" class="btn-add" id="exportBtn">Экспорт в Excel</a>
-            <button class="btn-add" data-bs-toggle="modal" data-bs-target="#importModal">Импорт из Excel</button>
-
-
-     
-            <table class="table table-hover">
+        </div>
+        
+        <div class="table-responsive">
+            <table class="table">
                 <thead>
                     <tr>
                         <th>ID</th>
@@ -331,33 +123,39 @@ include('sidebar.php');  // Подключаем сайдбар после sessi
                     </tr>
                 </thead>
                 <tbody>
-                <?php foreach ($students as $student): ?>
-<tr>
-    <td><?= htmlspecialchars($student['id']) ?></td>
-    <td><?= htmlspecialchars($student['name']) ?></td>
-    <td><?= htmlspecialchars($student['group_name']) ?></td>
-    <td><span class="status-badge <?= getBrsmStatus($student['id'], $pdo) == 'Состоит' ? 'status-yes' : 'status-no' ?>">
-        <?= htmlspecialchars(getBrsmStatus($student['id'], $pdo)) ?>
-    </span></td>
-    <td><span class="status-badge <?= getVolunteerStatus($student['id'], $pdo) == 'Активен' ? 'status-yes' : 'status-neutral' ?>">
-        <?= htmlspecialchars(getVolunteerStatus($student['id'], $pdo)) ?>
-    </span></td>
-    <td>
-        <button class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#editStudentModal"
-                data-id="<?= $student['id'] ?>"
-                data-name="<?= htmlspecialchars($student['name']) ?>"
-                data-group="<?= htmlspecialchars($student['group_name']) ?>"
-                data-brsm="<?= getBrsmStatus($student['id'], $pdo) == 'Состоит' ? '1' : '0' ?>"
-                data-volunteer="<?= getVolunteerStatus($student['id'], $pdo) == 'Активен' ? '1' : '0' ?>">
-                <i class='bx bx-edit-alt'></i>
-        </button>
-        <a class="btn btn-outline-danger btn-sm" href="students.php?delete_student=<?= $student['id'] ?>" 
-           onclick="return confirm('Вы уверены, что хотите удалить?')">
-           <i class='bx bx-trash'></i>
-        </a>
-    </td>
-</tr>
-<?php endforeach; ?>
+                    <?php foreach ($students as $index => $student): ?>
+                    <tr style="animation-delay: <?php echo $index * 0.05; ?>s">
+                        <td><?= htmlspecialchars($student['id']) ?></td>
+                        <td><?= htmlspecialchars($student['name']) ?></td>
+                        <td><?= htmlspecialchars($student['group_name']) ?></td>
+                        <td>
+                            <span class="status-badge <?= getBrsmStatus($student['id'], $pdo) == 'Состоит' ? 'status-yes' : 'status-no' ?>">
+                                <?= htmlspecialchars(getBrsmStatus($student['id'], $pdo)) ?>
+                            </span>
+                        </td>
+                        <td>
+                            <span class="status-badge <?= getVolunteerStatus($student['id'], $pdo) == 'Активен' ? 'status-yes' : 'status-neutral' ?>">
+                                <?= htmlspecialchars(getVolunteerStatus($student['id'], $pdo)) ?>
+                            </span>
+                        </td>
+                        <td>
+                            <div class="action-buttons">
+                                <button class="action-btn edit-btn" data-bs-toggle="modal" data-bs-target="#editStudentModal"
+                                    data-id="<?= $student['id'] ?>"
+                                    data-name="<?= htmlspecialchars($student['name']) ?>"
+                                    data-group-id="<?= htmlspecialchars($student['group_id']) ?>"
+                                    data-group="<?= htmlspecialchars($student['group_name']) ?>"
+                                    data-brsm="<?= getBrsmStatus($student['id'], $pdo) == 'Состоит' ? '1' : '0' ?>"
+                                    data-volunteer="<?= getVolunteerStatus($student['id'], $pdo) == 'Активен' ? '1' : '0' ?>">
+                                    <i class='bx bx-edit'></i>
+                                </button>
+                                <button class="action-btn delete-btn" onclick="confirmDelete(<?= $student['id'] ?>)">
+                                    <i class='bx bx-trash'></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                    <?php endforeach; ?>
                 </tbody>
             </table>
         </div>
@@ -366,7 +164,7 @@ include('sidebar.php');  // Подключаем сайдбар после sessi
 
 <!-- Модальное окно добавления студента -->
 <div class="modal fade" id="addStudentModal" tabindex="-1" aria-labelledby="addStudentModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
+    <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title" id="addStudentModalLabel">Добавить студента</h5>
@@ -376,81 +174,99 @@ include('sidebar.php');  // Подключаем сайдбар после sessi
                 <form method="POST" action="db_operations.php">
                     <input type="hidden" name="add_student" value="1">
                     <div class="mb-3">
-                        <label class="form-label">ФИО</label>
+                        <label class="form-label">ФИО студента</label>
                         <input type="text" class="form-control" name="name" required>
                     </div>
-                   <div class="mb-3">
-    <label class="form-label">Выберите группу</label>
-    <select class="form-select" name="group_id" required>
-        <option value="" disabled selected>Выберите группу</option>
-        <?php foreach ($groups as $group): ?>
-            <option value="<?= $group['id'] ?>">
-                <?= htmlspecialchars($group['group_name']) ?>
-            </option>
-        <?php endforeach; ?>
-    </select>
-</div>
-
-                    <div class="mb-3 d-flex justify-content-between">
-                        <div class="form-check">
-                            <input class="form-check-input" type="checkbox" name="brsm">
-                            <label class="form-check-label">БРСМ</label>
+                    <div class="mb-3">
+                        <label class="form-label">Выберите группу</label>
+                        <select class="form-select" name="group_id" required>
+                            <option value="" disabled selected>Выберите группу</option>
+                            <?php foreach ($groups as $group): ?>
+                                <option value="<?= $group['id'] ?>">
+                                    <?= htmlspecialchars($group['group_name']) ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    
+                    <div class="checkbox-container">
+                        <div class="checkbox-item">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="brsm" name="brsm">
+                                <label class="form-check-label" for="brsm">Состоит в БРСМ</label>
+                            </div>
                         </div>
-                        <div class="form-check">
-                            <input class="form-check-input" type="checkbox" name="volunteer">
-                            <label class="form-check-label">Волонтер</label>
+                        <div class="checkbox-item">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="volunteer" name="volunteer">
+                                <label class="form-check-label" for="volunteer">Активный волонтер</label>
+                            </div>
                         </div>
                     </div>
-                    <button type="submit" class="btn btn-primary w-100">Добавить</button>
+                    
+                    <button type="submit" class="btn btn-modal btn-submit">
+                        <i class='bx bx-plus-circle me-2'></i> Добавить студента
+                    </button>
                 </form>
             </div>
         </div>
     </div>
 </div>
 
-
-
-
-
 <!-- Модальное окно редактирования студента -->
-<div class="modal fade" id="addStudentModal" tabindex="-1" aria-labelledby="addStudentModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
+<div class="modal fade" id="editStudentModal" tabindex="-1" aria-labelledby="editStudentModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="addStudentModalLabel">Добавить студента</h5>
+                <h5 class="modal-title" id="editStudentModalLabel">Редактировать студента</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
                 <form method="POST" action="db_operations.php">
-                    <input type="hidden" name="add_student" value="1">
+                    <input type="hidden" name="edit_student" value="1">
+                    <input type="hidden" id="edit_id" name="id">
                     <div class="mb-3">
-                        <label class="form-label">ФИО</label>
-                        <input type="text" class="form-control" name="name" required>
+                        <label class="form-label">ФИО студента</label>
+                        <input type="text" class="form-control" id="edit_name" name="name" required>
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Группа</label>
-                        <input type="text" class="form-control" name="group_name" required>
+                        <select class="form-select" id="edit_group_id" name="group_id" required>
+                            <?php foreach ($groups as $group): ?>
+                                <option value="<?= $group['id'] ?>">
+                                    <?= htmlspecialchars($group['group_name']) ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
                     </div>
-                    <div class="form-check">
-                        <input class="form-check-input" type="checkbox" name="brsm">
-                        <label class="form-check-label">БРСМ</label>
+                    
+                    <div class="checkbox-container">
+                        <div class="checkbox-item">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="edit_brsm" name="brsm">
+                                <label class="form-check-label" for="edit_brsm">Состоит в БРСМ</label>
+                            </div>
+                        </div>
+                        <div class="checkbox-item">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="edit_volunteer" name="volunteer">
+                                <label class="form-check-label" for="edit_volunteer">Активный волонтер</label>
+                            </div>
+                        </div>
                     </div>
-                    <div class="form-check">
-                        <input class="form-check-input" type="checkbox" name="volunteer">
-                        <label class="form-check-label">Волонтер</label>
-                    </div>
-                    <button type="submit" class="btn btn-primary">Добавить</button>
+                    
+                    <button type="submit" class="btn btn-modal btn-submit">
+                        <i class='bx bx-save me-2'></i> Сохранить изменения
+                    </button>
                 </form>
             </div>
         </div>
     </div>
 </div>
 
-
-
 <!-- Модальное окно импорта Excel -->
 <div class="modal fade" id="importModal" tabindex="-1" aria-labelledby="importModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
+    <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title" id="importModalLabel">Импорт из Excel</h5>
@@ -458,145 +274,231 @@ include('sidebar.php');  // Подключаем сайдбар после sessi
             </div>
             <div class="modal-body">
                 <form method="POST" action="import_excel.php" enctype="multipart/form-data">
-                    <div class="mb-3">
+                    <div class="mb-4">
                         <label for="excelFile" class="form-label">Выберите файл Excel</label>
-                        <input type="file" class="form-control" id="excelFile" name="excelFile" accept=".xlsx" required>
+                        <div class="input-group">
+                            <input type="file" class="form-control" id="excelFile" name="excelFile" accept=".xlsx" required>
+                            <label for="excelFile" class="input-group-text btn-primary-custom" style="cursor: pointer;">
+                                <i class='bx bx-file me-1'></i> Обзор
+                            </label>
+                        </div>
+                        <div class="form-text mt-2">
+                            <i class='bx bx-info-circle me-1'></i> Поддерживаются файлы формата .xlsx
+                        </div>
                     </div>
-                    <button type="submit" class="btn btn-primary w-100">Импортировать</button>
+                    <button type="submit" class="btn btn-modal btn-submit">
+                        <i class='bx bx-upload me-2'></i> Импортировать данные
+                    </button>
                 </form>
             </div>
         </div>
     </div>
 </div>
 
-
-
-<div class="modal fade" id="editStudentModal" tabindex="-1" aria-labelledby="editStudentModalLabel" aria-hidden="true">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="editStudentModalLabel">Редактировать студента</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
-                    <form method="POST" action="db_operations.php">
-                        <input type="hidden" name="edit_student" value="1">
-                        <input type="hidden" id="edit_id" name="id">
-                        <div class="mb-3">
-                            <label class="form-label">ФИО</label>
-                            <input type="text" class="form-control" id="edit_name" name="name" required>
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label">Группа</label>
-                            <input type="text" class="form-control" id="edit_group" name="group_name" required>
-                        </div>
-                        <div class="form-check">
-                            <input class="form-check-input" type="checkbox" id="edit_brsm" name="brsm">
-                            <label class="form-check-label">БРСМ</label>
-                        </div>
-                        <div class="form-check">
-                            <input class="form-check-input" type="checkbox" id="edit_volunteer" name="volunteer">
-                            <label class="form-check-label">Волонтер</label>
-                        </div>
-                        <button type="submit" class="btn btn-primary">Сохранить изменения</button>
-                    </form>
-                </div>
+<!-- Модальное окно подтверждения удаления -->
+<div class="modal fade" id="deleteConfirmModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Подтверждение удаления</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body text-center">
+                <i class='bx bx-error-circle' style="font-size: 4rem; color: #EF4444; margin-bottom: 1rem;"></i>
+                <p>Вы действительно хотите удалить этого студента?</p>
+                <p class="text-muted small">Это действие нельзя будет отменить</p>
+            </div>
+            <div class="modal-footer justify-content-center">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                <a href="#" id="confirmDeleteBtn" class="btn btn-danger">Удалить</a>
             </div>
         </div>
     </div>
-
+</div>
 
 <script>
-    // Функция для отображения уведомлений
-function showNotification(message, type = 'success') {
-    // Create notification element
-    const notification = document.createElement('div');
-    notification.className = `notification notification-${type}`;
-    notification.innerHTML = `
-        <div class="notification-icon">
-            ${type === 'success' ? '<i class="bx bx-check"></i>' : 
-             type === 'error' ? '<i class="bx bx-x"></i>' : 
-             '<i class="bx bx-info-circle"></i>'}
-        </div>
-        <div class="notification-message">${message}</div>
-    `;
-    document.querySelector('.search-bar').addEventListener('input', function(e) {
+    // Добавляем анимацию для строк таблицы
+    document.addEventListener('DOMContentLoaded', function() {
+        // Задержка появления строк таблицы
+        const rows = document.querySelectorAll('tbody tr');
+        rows.forEach((row, index) => {
+            setTimeout(() => {
+                row.style.opacity = '1';
+            }, index * 50);
+        });
+        
+        // Время на часах в реальном времени
+        setInterval(() => {
+            const now = new Date();
+            const hours = String(now.getHours()).padStart(2, '0');
+            const minutes = String(now.getMinutes()).padStart(2, '0');
+            document.querySelector('.time-text').textContent = hours + ':' + minutes;
+        }, 1000);
+        
+        // Инициализация Select2 для выбора групп
+        if ($.fn.select2) {
+            $('.form-select').select2({
+                width: '100%',
+                dropdownParent: $('.modal-body'),
+                placeholder: "Выберите группу...",
+                allowClear: true
+            });
+        }
+        
+        // Поиск по таблице
+        document.getElementById('studentSearch').addEventListener('input', function(e) {
             const searchText = e.target.value.toLowerCase();
             document.querySelectorAll('tbody tr').forEach(row => {
                 const text = row.textContent.toLowerCase();
-                row.style.display = text.includes(searchText) ? '' : 'none';
+                if (text.includes(searchText)) {
+                    row.style.display = '';
+                    // Подсветка найденного текста (опционально)
+                    if (searchText.length > 0) {
+                        row.classList.add('highlight');
+                    } else {
+                        row.classList.remove('highlight');
+                    }
+                } else {
+                    row.style.display = 'none';
+                }
             });
         });
-    // Add to DOM
-    document.body.appendChild(notification);
-    
-    // Trigger animation
-    setTimeout(() => {
-        notification.classList.add('show');
-    }, 10);
-    
-    // Auto remove after 5 seconds
-    setTimeout(() => {
-        notification.classList.remove('show');
-        setTimeout(() => {
-            notification.remove();
-        }, 500); // Wait for fade out animation to complete
-    }, 5000);
-}
-$(document).ready(function() {
-    $('#groupSelect').select2({
-        width: '100%',
-        placeholder: "Выберите группу...",
-        allowClear: true
     });
-});
-// Код для отображения уведомлений из сессии
-<?php
-// Проверяем, есть ли уведомление в сессии
-if (isset($_SESSION['notification'])) {
-    $notification = $_SESSION['notification'];
-    echo "document.addEventListener('DOMContentLoaded', function() {
-        showNotification('" . addslashes($notification['message']) . "', '" . $notification['type'] . "');
-    });";
     
-    // Удаляем уведомление из сессии после отображения
-    unset($_SESSION['notification']);
-}
-?>
-// Функция для заполнения формы редактирования
-// Функция для заполнения формы редактирования старыми данными
-function fillEditForm(id, name, group, brsm, volunteer) {
-            document.getElementById('edit_id').value = id;
-            document.getElementById('edit_name').value = name;
-            document.getElementById('edit_group').value = group;
-            document.getElementById('edit_brsm').checked = brsm;
-            document.getElementById('edit_volunteer').checked = volunteer;
+    // Функция для отображения уведомлений
+    function showNotification(message, type = 'success', title = '') {
+        // Create notification element
+        const notification = document.createElement('div');
+        notification.className = `notification notification-${type}`;
+        
+        // Заголовки по умолчанию в зависимости от типа
+        if (!title) {
+            if (type === 'success') title = 'Успешно!';
+            else if (type === 'error') title = 'Ошибка!';
+            else if (type === 'info') title = 'Информация';
         }
-
-        // Пример использования функции fillEditForm при открытии модального окна
-        document.querySelectorAll('.btn-outline-primary').forEach(button => {
-            button.addEventListener('click', function() {
-                const studentId = this.dataset.id;
-                const studentName = this.dataset.name;
-                const studentGroup = this.dataset.group;
-                const studentBrsm = this.dataset.brsm === '1';
-                const studentVolunteer = this.dataset.volunteer === '1';
-
-                fillEditForm(studentId, studentName, studentGroup, studentBrsm, studentVolunteer);
-            });
+        
+        // Set notification content
+        notification.innerHTML = `
+            <div class="notification-icon">
+                ${type === 'success' ? '<i class="bx bx-check"></i>' : 
+                 type === 'error' ? '<i class="bx bx-x"></i>' : 
+                 '<i class="bx bx-info-circle"></i>'}
+            </div>
+            <div class="notification-content">
+                <div class="notification-title">${title}</div>
+                <div class="notification-message">${message}</div>
+            </div>
+            <button class="notification-close">
+                <i class="bx bx-x"></i>
+            </button>
+        `;
+        
+        // Add to DOM
+        document.body.appendChild(notification);
+        
+        // Add event listener to close button
+        notification.querySelector('.notification-close').addEventListener('click', () => {
+            notification.classList.remove('show');
+            setTimeout(() => {
+                notification.remove();
+            }, 500);
         });
-// Проверка перед экспортом
-document.addEventListener('DOMContentLoaded', function() {
+        
+        // Trigger animation
+        setTimeout(() => {
+            notification.classList.add('show');
+        }, 10);
+        
+        // Auto remove after 5 seconds
+        setTimeout(() => {
+            if (notification.parentNode) {
+                notification.classList.remove('show');
+                setTimeout(() => {
+                    if (notification.parentNode) {
+                        notification.remove();
+                    }
+                }, 500);
+            }
+        }, 5000);
+    }
+    
+    // Код для отображения уведомлений из сессии
+    <?php
+    if (isset($_SESSION['notification'])) {
+        $notification = $_SESSION['notification'];
+        echo "document.addEventListener('DOMContentLoaded', function() {
+            showNotification('" . addslashes($notification['message']) . "', '" . $notification['type'] . "');
+        });";
+        
+        // Удаляем уведомление из сессии после отображения
+        unset($_SESSION['notification']);
+    }
+    ?>
+    
+    // Функция для заполнения формы редактирования
+    document.querySelectorAll('.edit-btn').forEach(button => {
+        button.addEventListener('click', function() {
+            const studentId = this.dataset.id;
+            const studentName = this.dataset.name;
+            const studentGroupId = this.dataset.groupId;
+            const studentBrsm = this.dataset.brsm === '1';
+            const studentVolunteer = this.dataset.volunteer === '1';
+            
+            document.getElementById('edit_id').value = studentId;
+            document.getElementById('edit_name').value = studentName;
+            
+            // Установка значения выпадающего списка групп
+            const groupSelect = document.getElementById('edit_group_id');
+            for (let i = 0; i < groupSelect.options.length; i++) {
+                if (groupSelect.options[i].value === studentGroupId) {
+                    groupSelect.selectedIndex = i;
+                    break;
+                }
+            }
+            
+            // Обновление Select2 если используется
+            if ($.fn.select2) {
+                $('#edit_group_id').trigger('change');
+            }
+            
+            document.getElementById('edit_brsm').checked = studentBrsm;
+            document.getElementById('edit_volunteer').checked = studentVolunteer;
+        });
+    });
+    
+    // Функция подтверждения удаления
+    function confirmDelete(id) {
+        const deleteModal = new bootstrap.Modal(document.getElementById('deleteConfirmModal'));
+        document.getElementById('confirmDeleteBtn').href = `students.php?delete_student=${id}`;
+        deleteModal.show();
+    }
+    
     // Проверка перед экспортом
     document.getElementById('exportBtn').addEventListener('click', function(e) {
-        // Проверяем, если таблица пуста (или какие-либо другие условия)
+        // Проверяем, если таблица пуста
         let rows = document.querySelectorAll('table tbody tr');
         if (rows.length === 0) {
             e.preventDefault(); // Отменяем действие по умолчанию (перенаправление)
-            alert('Нет данных для экспорта!');
+            showNotification('Нет данных для экспорта!', 'error');
+        } else {
+            // Показываем уведомление об успешном экспорте
+            setTimeout(() => {
+                showNotification('Файл успешно экспортирован!', 'success');
+            }, 1000);
         }
     });
-});
+    
+    // Эффект наведения для кнопок
+    document.querySelectorAll('.btn-add').forEach(btn => {
+        btn.addEventListener('mouseenter', function() {
+            this.classList.add('pulse');
+        });
+        
+        btn.addEventListener('mouseleave', function() {
+            this.classList.remove('pulse');
+        });
+    });
 </script>
 
 </body>

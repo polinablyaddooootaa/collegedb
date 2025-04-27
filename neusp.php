@@ -49,6 +49,8 @@ $subjects = $stmt->fetchAll(PDO::FETCH_ASSOC);
     <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0-alpha1/css/bootstrap.min.css" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0-alpha1/js/bootstrap.bundle.min.js"></script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/boxicons@2.1.4/css/boxicons.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700&display=swap" rel="stylesheet">
+
     <link rel="icon" href="logo2.png" type="image/png">
     <link rel="stylesheet" href="index.css">
     <style>
@@ -219,254 +221,176 @@ $subjects = $stmt->fetchAll(PDO::FETCH_ASSOC);
 </head>
 <body>
 
-    <?php include('sidebar.php'); ?>  <!-- Подключение бокового меню -->
-    
-    <div class="content">
-        <header class="top-header">
-            <div class="user-info">
-                <i class='bx bx-user'></i>
-                <span><?php echo htmlspecialchars($_SESSION['username']); ?></span> <!-- Имя пользователя из сессии -->
-            </div>
-            <div class="date-container">
-                <i class="bx bx-calendar"></i>
-                <span class="date-text"><?php echo date('d.m.Y'); ?></span>
-                <span class="time-text"><?php echo date('H:i'); ?></span>
-            </div>
-            <div class="search-container">
-                <input type="text" class="search-bar" placeholder="Поиск...">
-            </div>
-        </header>
+<?php include('sidebar.php'); ?>  <!-- Подключение бокового меню -->
 
-        <div class="form-container mb-5">
-            <h1>Генерация уведомления об успеваемости</h1>
-            <p class="text-muted">Создайте уведомление о низкой успеваемости студента</p>
-            <button class="btn btn-generate" data-bs-toggle="modal" data-bs-target="#generateNotificationModal">Создать уведомление</button>
+<div class="content">
+    <header class="top-header">
+        <div class="user-info">
+            <i class='bx bx-user'></i>
+            <span><?php echo htmlspecialchars($_SESSION['username']); ?></span>
         </div>
-    </div>
-
-    <!-- Модальное окно -->
-    <div class="modal fade" id="generateNotificationModal" tabindex="-1" aria-labelledby="generateNotificationModalLabel" aria-hidden="true">
-        <div class="modal-dialog modal-xl">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="generateNotificationModalLabel">Уведомление о низкой успеваемости</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
-                    <form id="generateNotificationForm">
-                        <!-- Секция для выбора даты -->
-                        <div class="form-group mb-3">
-                            <label for="notificationDate">Дата уведомления:</label>
-                            <input type="date" id="notificationDate" class="form-control" value="<?php echo date('Y-m-d'); ?>">
-                        </div>
-
-                        <!-- Секция для выбора студента -->
-                        <div class="form-section mb-4">
-                            <h5>Информация о студентах</h5>
-                            
-                            <div class="form-group mb-3">
-                                <label>Список студентов:</label>
-                                <div class="student-dropdown">
-                                    <div class="search-input-container">
-                                        <i class='bx bx-search search-icon'></i>
-                                        <input type="text" class="dropdown-search" id="studentSearch" placeholder="Добавить студента...">
-                                    </div>
-                                    <div class="dropdown-content" id="studentsList">
-    <?php foreach ($students as $student): ?>
-        <div class="student-item" 
-             data-id="<?= $student['id'] ?>" 
-             data-name="<?= htmlspecialchars($student['name']) ?>" 
-             data-group="<?= htmlspecialchars($student['group_name']) ?>"
-             data-specialty="<?= htmlspecialchars($student['specialty_name']) ?>">
-            <?= htmlspecialchars($student['name']) ?> (<?= htmlspecialchars($student['group_name']) ?>)
+        <div class="date-container">
+            <i class="bx bx-calendar"></i>
+            <span class="date-text"><?php echo date('d.m.Y'); ?></span>
+            <span class="time-text"><?php echo date('H:i'); ?></span>
         </div>
-    <?php endforeach; ?>
-</div>
-                                    <div class="selected-student" id="selectedStudent">
-                                        <!-- Выбранные студенты будут здесь -->
-                                        <div class="p-2 text-muted">Студенты не выбраны</div>
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <div class="row">
-                                <div class="col-md-6">
-                                    <div class="form-group mb-3">
-                                        <label for="studentGender" class="d-block">Пол текущего студента:</label>
-                                        <div class="btn-group" role="group" aria-label="Выберите пол">
-                                            <button type="button" id="genderMaleBtn" class="btn btn-outline-primary active">
-                                                <i class='bx bx-male-sign'></i> Мужской
-                                            </button>
-                                            <button type="button" id="genderFemaleBtn" class="btn btn-outline-danger">
-                                                <i class='bx bx-female-sign'></i> Женский
-                                            </button>
-                                        </div>
-                                        <select id="studentGender" class="form-select d-none">
-                                            <option value="male">Мужской</option>
-                                            <option value="female">Женский</option>
-                                        </select>
-                                    </div>
-                                </div>
-                                <div class="col-md-6">
-                                    <div class="form-group mb-3">
-                                        <label for="studentCourse">Курс:</label>
-                                        <select id="studentCourse" class="form-select">
-                                            <option value="1">1</option>
-                                            <option value="2">2</option>
-                                            <option value="3">3</option>
-                                            <option value="4">4</option>
-                                        </select>
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <div class="form-group mb-3 d-none">
-    <label for="specialtySelect">Специальность:</label>
-    <select id="specialtySelect" class="form-select">
-        <?php foreach ($specialties as $specialty): ?>
-            <option value="<?= htmlspecialchars($specialty['name']) ?>"><?= htmlspecialchars($specialty['name']) ?></option>
-        <?php endforeach; ?>
-    </select>
-</div>
-<!-- Добавим отображение специальности -->
-<div class="form-group mb-3">
-    <label>Специальность:</label>
-    <div id="specialtyDisplay" class="form-control-plaintext">
-        <!-- Здесь будет отображаться специальность -->
-    </div>
-</div>
+        <div class="search-container">
+            <input type="text" class="search-bar" placeholder="Поиск...">
+        </div>
+    </header>
 
-                        <!-- Секция для выбора периода -->
-                        <div class="form-section mb-4">
-                            <h5>Период оценки успеваемости</h5>
-                            <div class="row">
-                                <div class="col-md-6">
-                                    <div class="form-group mb-3">
-                                        <label for="assessmentMonth">Месяц:</label>
-                                        <select id="assessmentMonth" class="form-select">
-                                            <option value="январь">Январь</option>
-                                            <option value="февраль">Февраль</option>
-                                            <option value="март">Март</option>
-                                            <option value="апрель">Апрель</option>
-                                            <option value="май">Май</option>
-                                            <option value="июнь">Июнь</option>
-                                            <option value="июль">Июль</option>
-                                            <option value="август">Август</option>
-                                            <option value="сентябрь">Сентябрь</option>
-                                            <option value="октябрь">Октябрь</option>
-                                            <option value="ноябрь">Ноябрь</option>
-                                            <option value="декабрь">Декабрь</option>
-                                        </select>
-                                    </div>
-                                </div>
-                                <div class="col-md-6">
-                                    <div class="form-group mb-3">
-                                        <label for="assessmentYear">Год:</label>
-                                        <input type="number" id="assessmentYear" class="form-control" value="<?php echo date('Y'); ?>" min="2000" max="2100">
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
+    <div class="form-container mb-5">
+        <h1>Генерация уведомления об успеваемости</h1>
+        <p class="text-muted">Создайте уведомление о низкой успеваемости студента</p>
 
-                        <!-- Секция для предметов с низкой успеваемостью -->
-                        <div class="form-section mb-4">
-                            <h5>Предметы с низкой успеваемостью</h5>
-                            <div class="row mb-3">
-                                <div class="col-md-8">
-                                    <div class="form-group">
-                                        <label for="subjectSelect">Выберите предмет:</label>
-                                        <select id="subjectSelect" class="form-select">
-                                            <?php foreach ($subjects as $subject): ?>
-                                                <option value="<?= htmlspecialchars($subject['name']) ?>"><?= htmlspecialchars($subject['name']) ?></option>
-                                            <?php endforeach; ?>
-                                        </select>
-                                    </div>
-                                </div>
-                                <div class="col-md-3">
-                                    <div class="form-group">
-                                        <label for="subjectGrade">Оценка:</label>
-                                        <select id="subjectGrade" class="form-select">
-                                            <option value="н/а">н/а</option>
-                                            <option value="1">1</option>
-                                            <option value="2">2</option>
-                                        </select>
-                                    </div>
-                                </div>
-                                <div class="col-md-1 d-flex align-items-end">
-                                    <button type="button" class="btn btn-primary mb-3" id="addSubjectBtn">+</button>
-                                </div>
-                            </div>
+        <form id="generateNotificationForm">
+            <!-- Дата уведомления -->
+            <div class="form-group mb-3">
+                <label for="notificationDate">Дата уведомления:</label>
+                <input type="date" id="notificationDate" class="form-control" value="<?php echo date('Y-m-d'); ?>">
+            </div>
 
-                            <div id="selectedSubjects" class="mb-3">
-                                <!-- Список выбранных предметов -->
+            <!-- Студенты -->
+            <h5>Информация о студентах</h5>
+            <div class="form-group mb-3">
+                <label>Список студентов:</label>
+                <div class="student-dropdown">
+                    <div class="search-input-container">
+                        <i class='bx bx-search search-icon'></i>
+                        <input type="text" class="dropdown-search" id="studentSearch" placeholder="Добавить студента...">
+                    </div>
+                    <div class="dropdown-content" id="studentsList">
+                        <?php foreach ($students as $student): ?>
+                            <div class="student-item"
+                                data-id="<?= $student['id'] ?>"
+                                data-name="<?= htmlspecialchars($student['name']) ?>"
+                                data-group="<?= htmlspecialchars($student['group_name']) ?>"
+                                data-specialty="<?= htmlspecialchars($student['specialty_name']) ?>">
+                                <?= htmlspecialchars($student['name']) ?> (<?= htmlspecialchars($student['group_name']) ?>)
                             </div>
-                        </div>
-
-                        <!-- Предпросмотр уведомления -->
-                        <div class="form-section mb-4">
-                            <h5 class="d-flex justify-content-between align-items-center">
-                                <span>Предпросмотр уведомления</span>
-                                <div class="btn-group">
-                                    <button id="prevStudent" class="btn btn-sm btn-outline-secondary"><i class='bx bx-chevron-left'></i></button>
-                                    <button id="nextStudent" class="btn btn-sm btn-outline-secondary"><i class='bx bx-chevron-right'></i></button>
-                                </div>
-                            </h5>
-                            <div id="preview-container">
-                                <p><span id="preview-date"></span> № 14-03/</p>
-                                <p id="preview-content"></p>
-                            </div>
-                        </div>
-                    </form>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Закрыть</button>
-                    <button type="button" class="btn btn-outline-primary me-2" id="generateAllBtn">Скачать все уведомления</button>
-                    <button type="button" class="btn btn-generate" id="generateBtn">Скачать уведомление</button>
+                        <?php endforeach; ?>
+                    </div>
+                    <div class="selected-student" id="selectedStudent">
+                        <div class="p-2 text-muted">Студенты не выбраны</div>
+                    </div>
                 </div>
             </div>
-        </div>
+
+            <div class="row">
+                <div class="col-md-6">
+                    <label class="d-block">Пол текущего студента:</label>
+                    <div class="btn-group mb-3">
+                        <button type="button" id="genderMaleBtn" class="btn btn-outline-primary active">
+                            <i class='bx bx-male-sign'></i> Мужской
+                        </button>
+                        <button type="button" id="genderFemaleBtn" class="btn btn-outline-danger">
+                            <i class='bx bx-female-sign'></i> Женский
+                        </button>
+                    </div>
+                    <select id="studentGender" class="form-select d-none">
+                        <option value="male">Мужской</option>
+                        <option value="female">Женский</option>
+                    </select>
+                </div>
+                <div class="col-md-6">
+                    <label for="studentCourse">Курс:</label>
+                    <select id="studentCourse" class="form-select mb-3">
+                        <option value="1">1</option>
+                        <option value="2">2</option>
+                        <option value="3">3</option>
+                        <option value="4">4</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="form-group mb-3 d-none">
+                <label for="specialtySelect">Специальность:</label>
+                <select id="specialtySelect" class="form-select">
+                    <?php foreach ($specialties as $specialty): ?>
+                        <option value="<?= htmlspecialchars($specialty['name']) ?>"><?= htmlspecialchars($specialty['name']) ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <div class="form-group mb-3">
+                <label>Специальность:</label>
+                <div id="specialtyDisplay" class="form-control-plaintext"></div>
+            </div>
+
+            <!-- Период -->
+            <h5>Период оценки успеваемости</h5>
+            <div class="row">
+                <div class="col-md-6">
+                    <label for="assessmentMonth">Месяц:</label>
+                    <select id="assessmentMonth" class="form-select mb-3">
+                        <option value="январь">Январь</option>
+                        <option value="февраль">Февраль</option>
+                        <option value="март">Март</option>
+                        <option value="апрель">Апрель</option>
+                        <option value="май">Май</option>
+                        <option value="июнь">Июнь</option>
+                        <option value="июль">Июль</option>
+                        <option value="август">Август</option>
+                        <option value="сентябрь">Сентябрь</option>
+                        <option value="октябрь">Октябрь</option>
+                        <option value="ноябрь">Ноябрь</option>
+                        <option value="декабрь">Декабрь</option>
+                    </select>
+                </div>
+                <div class="col-md-6">
+                    <label for="assessmentYear">Год:</label>
+                    <input type="number" id="assessmentYear" class="form-control mb-3" value="<?php echo date('Y'); ?>" min="2000" max="2100">
+                </div>
+            </div>
+
+            <!-- Предметы -->
+            <h5>Предметы с низкой успеваемостью</h5>
+            <div class="row mb-3">
+                <div class="col-md-8">
+                    <label for="subjectSelect">Выберите предмет:</label>
+                    <select id="subjectSelect" class="form-select">
+                        <?php foreach ($subjects as $subject): ?>
+                            <option value="<?= htmlspecialchars($subject['name']) ?>"><?= htmlspecialchars($subject['name']) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label for="subjectGrade">Оценка:</label>
+                    <select id="subjectGrade" class="form-select">
+                        <option value="н/а">н/а</option>
+                        <option value="1">1</option>
+                        <option value="2">2</option>
+                    </select>
+                </div>
+                <div class="col-md-1 d-flex align-items-end">
+                    <button type="button" class="btn btn-primary" id="addSubjectBtn">+</button>
+                </div>
+            </div>
+            <div id="selectedSubjects" class="mb-3"></div>
+
+            <!-- Предпросмотр -->
+            <h5 class="d-flex justify-content-between align-items-center">
+                <span>Предпросмотр уведомления</span>
+                <div class="btn-group">
+                    <button id="prevStudent" class="btn btn-sm btn-outline-secondary"><i class='bx bx-chevron-left'></i></button>
+                    <button id="nextStudent" class="btn btn-sm btn-outline-secondary"><i class='bx bx-chevron-right'></i></button>
+                </div>
+            </h5>
+            <div id="preview-container" class="mb-3">
+                <p><span id="preview-date"></span> № 14-03/</p>
+                <p id="preview-content"></p>
+            </div>
+
+            <!-- Кнопки -->
+            <div class="d-flex justify-content-end">
+                <button type="button" class="btn btn-outline-primary me-2" id="generateAllBtn">Скачать все уведомления</button>
+                <button type="button" class="btn btn-generate" id="generateBtn">Скачать уведомление</button>
+            </div>
+        </form>
     </div>
+</div>
+</body>
 
 <script>
-    function saveNotificationToDatabase(studentId, content, notificationDate) {
-    return $.ajax({
-        url: 'save_notification.php',
-        type: 'POST',
-        data: {
-            student_id: studentId,
-            notification_date: notificationDate,
-            content: content,
-        },
-        dataType: 'json',
-    }).done(function(response) {
-        if (response.status === 'success') {
-            console.log('Уведомление успешно сохранено');
-        } else {
-            console.error('Ошибка сохранения уведомления:', response.message);
-        }
-    }).fail(function(error) {
-        console.error('Ошибка AJAX при сохранении уведомления:', error);
-    });
-}
-
-// Пример вызова при генерации уведомления
-$('#generateBtn').on('click', function() {
-    if (currentStudentIndex < 0 || !selectedStudents.length) {
-        alert('Пожалуйста, выберите студента');
-        return;
-    }
-    
-    const student = selectedStudents[currentStudentIndex];
-    const notificationDate = $('#notificationDate').val();
-    const content = $('#preview-content').text();
-
-    if (!content) {
-        alert('Уведомление пустое');
-        return;
-    }
-
-    saveNotificationToDatabase(student.id, content, notificationDate);
-});
 $(document).ready(function() {
     let selectedStudents = [];
     let currentStudentIndex = -1;
@@ -931,7 +855,6 @@ $('#studentsList .student-item').on('click', function() {
             });
     });
 });
-
 </script>
 
 </body>

@@ -162,6 +162,7 @@ if (isset($_GET['delete_volunteer'])) {
     <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0-alpha1/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.7.0/chart.min.js"></script>
     <link rel="stylesheet" href="index.css">
+    <link rel="stylesheet" href="style.css"> <!-- Подключение стилей -->
     <link rel="icon" href="logo2.png" type="image/png">
     <style>
         body, html {
@@ -249,7 +250,7 @@ if (isset($_GET['delete_volunteer'])) {
             background-color: #f1f3f9;
             text-transform: uppercase;
         }
-        .btn-add {
+        .btn-add btn-primary-custom {
             font-size: 1rem;
             padding: 0.5rem 1.5rem;
             background: linear-gradient(135deg, #4946e5 0%, #636ff1 100%);
@@ -283,7 +284,7 @@ if (isset($_GET['delete_volunteer'])) {
         <div class="table-container">
             <h2 class="mb-3">Список волонтеров</h2>
             <button class="btn-add" data-bs-toggle="modal" data-bs-target="#addVolunteerModal">
-            <i class='bx bx-plus-circle me-1'></i> Добавить волонтера
+            <i class='btn-add btn-primary-custom'></i> Добавить волонтера
             </button>
             <table class="table table-hover">
                 <thead>

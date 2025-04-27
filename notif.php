@@ -30,12 +30,21 @@ $specialties = $stmt->fetchAll(PDO::FETCH_ASSOC);
     <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0-alpha1/css/bootstrap.min.css" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0-alpha1/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.7.1/jszip.min.js"></script>
+    <!-- jQuery -->
+<script src="https://code.jquery.com/jquery-3.6.4.min.js"></script>
+
+<!-- JSZip -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/boxicons@2.1.4/css/boxicons.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700&display=swap" rel="stylesheet">
+
     <link rel="icon" href="logo2.png" type="image/png">
     <link rel="stylesheet" href="index.css">
     <style>
         body, html { margin: 0; font-family: 'Inter', sans-serif; background-color: #f4f7fc; }
         .wrapper { display: flex; height: 100vh; }
+        
         .content { margin-left: 260px; flex-grow: 1; padding: 20px; overflow-y: auto; }
         .top-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; }
         .date-container { display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 1rem; background-color: white; border-radius: 0.75rem; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1); }
@@ -187,123 +196,68 @@ $specialties = $stmt->fetchAll(PDO::FETCH_ASSOC);
     <?php include('sidebar.php'); ?>
     
     <div class="content">
-        <header class="top-header">
-            <div class="user-info">
-                <i class='bx bx-user'></i>
-                <span><?php echo htmlspecialchars($_SESSION['username']); ?></span>
-            </div>
-            <div class="date-container">
-                <i class="bx bx-calendar"></i>
-                <span class="date-text"><?php echo date('d.m.Y'); ?></span>
-                <span class="time-text"><?php echo date('H:i'); ?></span>
-            </div>
-            <div class="search-container">
-                <input type="text" class="search-bar" placeholder="Поиск...">
-            </div>
-        </header>
-
-        <div class="form-container mb-5">
-            <h1>Генерация уведомления о пропусках</h1>
-            <p class="text-muted">Создайте уведомление о пропусках занятий для одного или нескольких студентов</p>
-            <button class="btn btn-generate" data-bs-toggle="modal" data-bs-target="#generateNotificationModal">Создать уведомление</button>
+    <header class="top-header">
+        <div class="user-info">
+            <i class='bx bx-user'></i>
+            <span><?php echo htmlspecialchars($_SESSION['username']); ?></span>
         </div>
-    </div>
+        <div class="date-container">
+            <i class="bx bx-calendar"></i>
+            <span class="date-text"><?php echo date('d.m.Y'); ?></span>
+            <span class="time-text"><?php echo date('H:i'); ?></span>
+        </div>
+        <div class="search-container">
+            <input type="text" class="search-bar" placeholder="Поиск...">
+        </div>
+    </header>
 
-    <!-- Модальное окно -->
-    <div class="modal fade" id="generateNotificationModal" tabindex="-1" aria-labelledby="generateNotificationModalLabel" aria-hidden="true">
-        <div class="modal-dialog modal-xl">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="generateNotificationModalLabel">Уведомление о пропусках</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
-                    <form id="generateNotificationForm">
-                        <!-- Секция для выбора даты -->
+    <div class="form-container mb-5">
+        <h1>Генерация уведомления о пропусках</h1>
+        <p class="text-muted">Создайте уведомление о пропусках занятий для одного или нескольких студентов</p>
+
+        <form id="generateNotificationForm">
+            <!-- Дата уведомления -->
+            <div class="form-group mb-3">
+                <label for="notificationDate">Дата уведомления:</label>
+                <input type="date" id="notificationDate" class="form-control" value="<?php echo date('Y-m-d'); ?>">
+            </div>
+
+            <!-- Информация о студентах -->
+            <div class="form-section mb-4">
+                <h5>Информация о студентах</h5>
+                <div class="row">
+                    <div class="col-md-6">
                         <div class="form-group mb-3">
-                            <label for="notificationDate">Дата уведомления:</label>
-                            <input type="date" id="notificationDate" class="form-control" value="<?php echo date('Y-m-d'); ?>">
+                            <label for="studentCourse">Курс:</label>
+                            <select id="studentCourse" class="form-select">
+                                <option value="1">1</option>
+                                <option value="2">2</option>
+                                <option value="3">3</option>
+                                <option value="4">4</option>
+                            </select>
                         </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="form-group mb-3">
+                            <label for="specialtySelect">Специальность:</label>
+                            <select id="specialtySelect" class="form-select">
+                                <?php foreach ($specialties as $specialty): ?>
+                                    <option value="<?= htmlspecialchars($specialty['name']) ?>"><?= htmlspecialchars($specialty['name']) ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                    </div>
+                </div>
 
-                        <!-- Секция для выбора студента -->
-                        <div class="form-section mb-4">
-                            <h5>Информация о студентах</h5>
-                            <div class="row">
-                                <div class="col-md-6">
-                                    <div class="form-group mb-3">
-                                        <label for="studentCourse">Курс:</label>
-                                        <select id="studentCourse" class="form-select">
-                                            <option value="1">1</option>
-                                            <option value="2">2</option>
-                                            <option value="3">3</option>
-                                            <option value="4">4</option>
-                                        </select>
-                                    </div>
-                                </div>
-                                <div class="col-md-6">
-                                    <div class="form-group mb-3">
-                                        <label for="specialtySelect">Специальность:</label>
-                                        <select id="specialtySelect" class="form-select">
-                                            <?php foreach ($specialties as $specialty): ?>
-                                                <option value="<?= htmlspecialchars($specialty['name']) ?>"><?= htmlspecialchars($specialty['name']) ?></option>
-                                            <?php endforeach; ?>
-                                        </select>
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <div class="form-group mb-3">
-                                <label>Студенты для уведомления:</label>
-                                <div class="selected-students-container" id="selectedStudents">
-                                    <!-- Здесь будут выбранные студенты -->
-                                    <div class="text-center p-3 text-muted" id="noStudentsMessage">
-                                        Нет выбранных студентов
-                                    </div>
-                                </div>
-                                
-                                <div class="add-student-btn" id="addStudentBtn">
-                                    <i class='bx bx-plus'></i> Добавить студента
-                                </div>
-                            </div>
+                <div class="form-group mb-3">
+                    <label>Студенты для уведомления:</label>
+                    <div class="selected-students-container" id="selectedStudents">
+                        <div class="text-center p-3 text-muted" id="noStudentsMessage">
+                            Нет выбранных студентов
                         </div>
+                    </div>
 
-                        <!-- Предпросмотр уведомлений -->
-                        <div class="form-section mb-4">
-                            <h5>Предпросмотр уведомлений</h5>
-                            <div id="preview-container">
-                                <!-- Здесь будут превью уведомлений -->
-                                <div class="text-center p-3 text-muted" id="noPreviewMessage">
-                                    Выберите студентов для предпросмотра уведомлений
-                                </div>
-                            </div>
-                            
-                            <div class="generation-progress" id="generationProgress">
-                                <div class="progress">
-                                    <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%"></div>
-                                </div>
-                                <p class="text-center mt-2" id="generationStatus">Подготовка...</p>
-                            </div>
-                        </div>
-                    </form>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Закрыть</button>
-                    <button type="button" class="btn btn-generate" id="generateBtn">Скачать уведомления</button>
-                </div>
-            </div>
-        </div>
-    </div>
-    
-    <!-- Модальное окно выбора студента -->
-    <div class="modal fade" id="studentSelectionModal" tabindex="-1" aria-labelledby="studentSelectionModalLabel" aria-hidden="true">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="studentSelectionModalLabel">Выбор студента</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
-                    <div class="student-dropdown">
+                    <div class="student-dropdown mt-3">
                         <div class="search-input-container">
                             <i class='bx bx-search search-icon'></i>
                             <input type="text" class="dropdown-search" id="studentSearch" placeholder="Поиск студента...">
@@ -317,12 +271,32 @@ $specialties = $stmt->fetchAll(PDO::FETCH_ASSOC);
                         </div>
                     </div>
                 </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+            </div>
+
+            <!-- Предпросмотр уведомлений -->
+            <div class="form-section mb-4">
+                <h5>Предпросмотр уведомлений</h5>
+                <div id="preview-container">
+                    <div class="text-center p-3 text-muted" id="noPreviewMessage">
+                        Выберите студентов для предпросмотра уведомлений
+                    </div>
+                </div>
+
+                <div class="generation-progress" id="generationProgress">
+                    <div class="progress">
+                        <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%"></div>
+                    </div>
+                    <p class="text-center mt-2" id="generationStatus">Подготовка...</p>
                 </div>
             </div>
-        </div>
+
+            <div class="text-end">
+                <button type="submit" class="btn btn-generate" id="generateBtn">Скачать уведомления</button>
+            </div>
+        </form>
     </div>
+</div>
+
 
 <script>
 $(document).ready(function() {

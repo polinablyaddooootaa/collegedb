@@ -91,6 +91,8 @@ if (isset($_GET['delete_member'])) {
     <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0-alpha1/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.7.0/chart.min.js"></script>
     <link rel="stylesheet" href="index.css"> <!-- Подключение стилей -->
+    <link rel="stylesheet" href="style.css"> <!-- Подключение стилей -->
+    
     <link rel="icon" href="logo2.png" type="image/png">
     <style>
         body, html {
@@ -312,54 +314,51 @@ if (isset($_GET['delete_member'])) {
         </div>
     </div>
 
-    <script>
+<script>
     // Функция для заполнения формы редактирования
-    function fillEditForm(id, student_id, date_joined) {
-        document.getElementById('edit_id').value = id;
-        document.getElementById('edit_student_id').value = student_id;
-        document.getElementById('edit_date_joined').value = date_joined;
-    }
-    document.querySelector('.search-bar').addEventListener('input', function(e) {
-            const searchText = e.target.value.toLowerCase();
-            document.querySelectorAll('tbody tr').forEach(row => {
-                const text = row.textContent.toLowerCase();
-                row.style.display = text.includes(searchText) ? '' : 'none';
-            });
+function fillEditForm(id, student_id, date_joined) {
+    document.getElementById('edit_id').value = id;
+    document.getElementById('edit_student_id').value = student_id;
+    document.getElementById('edit_date_joined').value = date_joined;
+}
+document.querySelector('.search-bar').addEventListener('input', function(e) {
+        const searchText = e.target.value.toLowerCase();
+        document.querySelectorAll('tbody tr').forEach(row => {
+            const text = row.textContent.toLowerCase();
+            row.style.display = text.includes(searchText) ? '' : 'none';
         });
-    // Функция для отображения уведомлений
-    function showNotification(message, type = 'success') {
-        // Create notification element
-        const notification = document.createElement('div');
-        notification.className = `notification notification-${type}`;
-        notification.innerHTML = `
-            <div class="notification-icon">
-                ${type === 'success' ? '<i class="bx bx-check"></i>' : 
-                 type === 'error' ? '<i class="bx bx-x"></i>' : 
-                 '<i class="bx bx-info-circle"></i>'}
-            </div>
-            <div class="notification-message">${message}</div>
-        `;
-        
-        // Add to DOM
-        document.body.appendChild(notification);
-        
-        // Trigger animation
-        setTimeout(() => {
-            notification.classList.add('show');
-        }, 10);
-        
-        // Auto remove after 5 seconds
-        setTimeout(() => {
-            notification.classList.remove('show');
-            setTimeout(() => {
-                notification.remove();
-            }, 500); // Wait for fade out animation to complete
-        }, 5000);
-    }
-    </script>
+    });
+// Функция для отображения уведомлений
+function showNotification(message, type = 'success') {
+    // Create notification element
+    const notification = document.createElement('div');
+    notification.className = `notification notification-${type}`;
+    notification.innerHTML = `
+        <div class="notification-icon">
+            ${type === 'success' ? '<i class="bx bx-check"></i>' : 
+             type === 'error' ? '<i class="bx bx-x"></i>' : 
+             '<i class="bx bx-info-circle"></i>'}
+        </div>
+        <div class="notification-message">${message}</div>
+    `;
     
-    <!-- Код для отображения уведомлений из сессии -->
-    <script>
+    // Add to DOM
+    document.body.appendChild(notification);
+    
+    // Trigger animation
+    setTimeout(() => {
+        notification.classList.add('show');
+    }, 10);
+    
+    // Auto remove after 5 seconds
+    setTimeout(() => {
+        notification.classList.remove('show');
+        setTimeout(() => {
+            notification.remove();
+        }, 500); // Wait for fade out animation to complete
+    }, 5000);
+}
+    </script>
     <?php
     // Проверяем, есть ли уведомление в сессии
     if (isset($_SESSION['notification'])) {
@@ -372,7 +371,7 @@ if (isset($_GET['delete_member'])) {
         unset($_SESSION['notification']);
     }
     ?>
-    </script>
+   
 
 </body>
 </html>

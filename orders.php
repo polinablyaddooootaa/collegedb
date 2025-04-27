@@ -24,17 +24,20 @@ $students = $stmt->fetchAll(PDO::FETCH_ASSOC);
     <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0-alpha1/css/bootstrap.min.css" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0-alpha1/js/bootstrap.bundle.min.js"></script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/boxicons@2.1.4/css/boxicons.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700&display=swap" rel="stylesheet">
+
     <link rel="icon" href="logo2.png" type="image/png">
     <link rel="stylesheet" href="index.css">
     <style>
         body, html { margin: 0; font-family: 'Inter', sans-serif; background-color: #f4f7fc; }
-        .wrapper { display: flex; height: 100vh; }
+        .wrapper { display: flex; min-height: 100vh; }
         .content { margin-left: 260px; flex-grow: 1; padding: 20px; overflow-y: auto; }
         .top-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; }
         .date-container { display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 1rem; background-color: white; border-radius: 0.75rem; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1); }
         .date-text, .time-text { color: #64748b; }
-        .form-container { background-color: white; border-radius: 10px; padding: 20px; box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.1); }
-        .btn-generate { font-size: 1rem; padding: 0.5rem 1.5rem;  background: linear-gradient(135deg, #4946e5 0%, #636ff1 100%); border: none; color: white; }
+        .form-container { background-color: white; border-radius: 10px; padding: 30px; box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.1); margin-bottom: 30px; }
+        .btn-generate { font-size: 1rem; padding: 0.5rem 1.5rem; background: linear-gradient(135deg, #4946e5 0%, #636ff1 100%); border: none; color: white; }
+        .page-title { margin-bottom: 30px; color: #4946e5; }
         
         /* Стили для выпадающего списка с поиском */
         .student-dropdown {
@@ -129,6 +132,15 @@ $students = $stmt->fetchAll(PDO::FETCH_ASSOC);
             background-color: white;
             margin-top: 10px;
         }
+        
+        .form-footer {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid #dee2e6;
+        }
     </style>
 </head>
 <body>
@@ -151,121 +163,108 @@ $students = $stmt->fetchAll(PDO::FETCH_ASSOC);
             </div>
         </header>
 
-        <div class="form-container mb-5">
-            <h1>Генерация приказа о взыскании</h1>
-            <button class="btn btn-generate" data-bs-toggle="modal" data-bs-target="#generateOrderModal">Создать приказ</button>
-        </div>
-    </div>
+        <div class="form-container">
+            <h1 class="page-title">Генерация приказа о взыскании</h1>
+            
+            <form id="generateOrderForm">
+                <!-- Секция для выбора даты приказа -->
+                <div class="form-group mb-4">
+                    <label for="orderDate">Дата приказа:</label>
+                    <input type="date" id="orderDate" class="form-control" value="<?php echo date('Y-m-d'); ?>">
+                </div>
 
-   <!-- Модальное окно -->
-<div class="modal fade" id="generateOrderModal" tabindex="-1" aria-labelledby="generateOrderModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-xl"> <!-- Используем modal-xl для большего размера -->
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="generateOrderModalLabel">Создание приказа о взыскании</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <form id="generateOrderForm">
-                    <!-- Секция для выбора даты приказа -->
+                <!-- Секция для замечаний -->
+                <div class="punishment-section mb-4">
+                    <h5>Замечание</h5>
                     <div class="form-group mb-3">
-                        <label for="orderDate">Дата приказа:</label>
-                        <input type="date" id="orderDate" class="form-control" value="<?php echo date('Y-m-d'); ?>">
-                    </div>
-
-                    <!-- Секция для замечаний -->
-                    <div class="punishment-section mb-4">
-                        <h5>Замечание</h5>
-                        <div class="form-group mb-3">
-                            <div class="student-dropdown" aria-labelledby="warningStudentsLabel">
-                                <div class="search-input-container">
-                                    <i class='bx bx-search search-icon'></i>
-                                    <input type="text" class="dropdown-search" id="warningStudentSearch" placeholder="Поиск студентов для замечания...">
-                                </div>
-                                <div class="dropdown-content" id="warningStudentsList">
-                                    <?php foreach ($students as $student): ?>
-                                        <div class="student-item" data-id="<?= $student['id'] ?>" data-name="<?= htmlspecialchars($student['name']) ?>" data-group="<?= htmlspecialchars($student['group_name']) ?>">
-                                            <input type="checkbox" class="student-checkbox warning-student-checkbox" id="warning_student_<?= $student['id'] ?>">
-                                            <label for="warning_student_<?= $student['id'] ?>"><?= htmlspecialchars($student['name']) ?> (<?= htmlspecialchars($student['group_name']) ?>)</label>
-                                        </div>
-                                    <?php endforeach; ?>
-                                </div>
-                                <div class="selected-students" id="selectedWarningStudents">
-                                    <!-- Выбранные студенты для замечания -->
-                                </div>
+                        <div class="student-dropdown" aria-labelledby="warningStudentsLabel">
+                            <div class="search-input-container">
+                                <i class='bx bx-search search-icon'></i>
+                                <input type="text" class="dropdown-search" id="warningStudentSearch" placeholder="Поиск студентов для замечания...">
+                            </div>
+                            <div class="dropdown-content" id="warningStudentsList">
+                                <?php foreach ($students as $student): ?>
+                                    <div class="student-item" data-id="<?= $student['id'] ?>" data-name="<?= htmlspecialchars($student['name']) ?>" data-group="<?= htmlspecialchars($student['group_name']) ?>">
+                                        <input type="checkbox" class="student-checkbox warning-student-checkbox" id="warning_student_<?= $student['id'] ?>">
+                                        <label for="warning_student_<?= $student['id'] ?>"><?= htmlspecialchars($student['name']) ?> (<?= htmlspecialchars($student['group_name']) ?>)</label>
+                                    </div>
+                                <?php endforeach; ?>
+                            </div>
+                            <div class="selected-students" id="selectedWarningStudents">
+                                <!-- Выбранные студенты для замечания -->
                             </div>
                         </div>
-                        <div id="warningHoursContainer" class="form-group mb-3">
-                            <!-- Поля для ввода часов (замечание) -->
-                        </div>
                     </div>
+                    <div id="warningHoursContainer" class="form-group mb-3">
+                        <!-- Поля для ввода часов (замечание) -->
+                    </div>
+                </div>
 
-                    <!-- Секция для выговоров -->
-                    <div class="punishment-section mb-4">
-                        <h5>Выговор</h5>
-                        <div class="form-group mb-3">
-                            <div class="student-dropdown" aria-labelledby="reprimandStudentsLabel">
-                                <div class="search-input-container">
-                                    <i class='bx bx-search search-icon'></i>
-                                    <input type="text" class="dropdown-search" id="reprimandStudentSearch" placeholder="Поиск студентов для выговора...">
-                                </div>
-                                <div class="dropdown-content" id="reprimandStudentsList">
-                                    <?php foreach ($students as $student): ?>
-                                        <div class="student-item" data-id="<?= $student['id'] ?>" data-name="<?= htmlspecialchars($student['name']) ?>" data-group="<?= htmlspecialchars($student['group_name']) ?>">
-                                            <input type="checkbox" class="student-checkbox reprimand-student-checkbox" id="reprimand_student_<?= $student['id'] ?>">
-                                            <label for="reprimand_student_<?= $student['id'] ?>"><?= htmlspecialchars($student['name']) ?> (<?= htmlspecialchars($student['group_name']) ?>)</label>
-                                        </div>
-                                    <?php endforeach; ?>
-                                </div>
-                                <div class="selected-students" id="selectedReprimandStudents">
-                                    <!-- Выбранные студенты для выговора -->
-                                </div>
+                <!-- Секция для выговоров -->
+                <div class="punishment-section mb-4">
+                    <h5>Выговор</h5>
+                    <div class="form-group mb-3">
+                        <div class="student-dropdown" aria-labelledby="reprimandStudentsLabel">
+                            <div class="search-input-container">
+                                <i class='bx bx-search search-icon'></i>
+                                <input type="text" class="dropdown-search" id="reprimandStudentSearch" placeholder="Поиск студентов для выговора...">
+                            </div>
+                            <div class="dropdown-content" id="reprimandStudentsList">
+                                <?php foreach ($students as $student): ?>
+                                    <div class="student-item" data-id="<?= $student['id'] ?>" data-name="<?= htmlspecialchars($student['name']) ?>" data-group="<?= htmlspecialchars($student['group_name']) ?>">
+                                        <input type="checkbox" class="student-checkbox reprimand-student-checkbox" id="reprimand_student_<?= $student['id'] ?>">
+                                        <label for="reprimand_student_<?= $student['id'] ?>"><?= htmlspecialchars($student['name']) ?> (<?= htmlspecialchars($student['group_name']) ?>)</label>
+                                    </div>
+                                <?php endforeach; ?>
+                            </div>
+                            <div class="selected-students" id="selectedReprimandStudents">
+                                <!-- Выбранные студенты для выговора -->
                             </div>
                         </div>
-                        <div id="reprimandHoursContainer" class="form-group mb-3">
-                            <!-- Поля для ввода часов (выговор) -->
-                        </div>
                     </div>
+                    <div id="reprimandHoursContainer" class="form-group mb-3">
+                        <!-- Поля для ввода часов (выговор) -->
+                    </div>
+                </div>
 
-                    <div class="form-group mb-3">
-                        <label for="reasonSelect">Причина взыскания:</label>
-                        <select id="reasonSelect" class="form-select">
-                            <option value="неявки без уважительных причин на учебные занятия">Неявки без уважительных причин на учебные занятия</option>
-                            <option value="систематические опоздания на учебные занятия">Систематические опоздания на учебные занятия</option>
-                        </select>
-                    </div>
+                <div class="form-group mb-4">
+                    <label for="reasonSelect">Причина взыскания:</label>
+                    <select id="reasonSelect" class="form-select">
+                        <option value="неявки без уважительных причин на учебные занятия">Неявки без уважительных причин на учебные занятия</option>
+                        <option value="систематические опоздания на учебные занятия">Систематические опоздания на учебные занятия</option>
+                    </select>
+                </div>
 
-                    <!-- Секция для выбора месяца и года пропусков -->
-                    <div class="form-group mb-3">
-                        <label for="absenceMonth">Месяц пропуска:</label>
-                        <select id="absenceMonth" class="form-select">
-                            <option value="январе">Январь</option>
-                            <option value="феврале">Февраль</option>
-                            <option value="марте">Март</option>
-                            <option value="апреле">Апрель</option>
-                            <option value="мае">Май</option>
-                            <option value="июне">Июнь</option>
-                            <option value="июле">Июль</option>
-                            <option value="августе">Август</option>
-                            <option value="сентябре">Сентябрь</option>
-                            <option value="октябре">Октябрь</option>
-                            <option value="ноябре">Ноябрь</option>
-                            <option value="декабре">Декабрь</option>
-                        </select>
-                    </div>
-                    <div class="form-group mb-3">
-                        <label for="absenceYear">Год пропуска:</label>
-                        <input type="number" id="absenceYear" class="form-control" value="2025" min="2000" max="2100">
-                    </div>
-                </form>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Закрыть</button>
-                <button type="button" class="btn btn-generate" onclick="generateOrder()">Скачать приказ</button>
-            </div>
+                <!-- Секция для выбора месяца и года пропусков -->
+                <div class="form-group mb-4">
+                    <label for="absenceMonth">Месяц пропуска:</label>
+                    <select id="absenceMonth" class="form-select">
+                        <option value="январе">Январь</option>
+                        <option value="феврале">Февраль</option>
+                        <option value="марте">Март</option>
+                        <option value="апреле">Апрель</option>
+                        <option value="мае">Май</option>
+                        <option value="июне">Июнь</option>
+                        <option value="июле">Июль</option>
+                        <option value="августе">Август</option>
+                        <option value="сентябре">Сентябрь</option>
+                        <option value="октябре">Октябрь</option>
+                        <option value="ноябре">Ноябрь</option>
+                        <option value="декабре">Декабрь</option>
+                    </select>
+                </div>
+                <div class="form-group mb-4">
+                    <label for="absenceYear">Год пропуска:</label>
+                    <input type="number" id="absenceYear" class="form-control" value="2025" min="2000" max="2100">
+                </div>
+                
+                <div class="form-footer">
+                    <button type="button" class="btn btn-secondary" onclick="window.history.back()">Назад</button>
+                    <button type="button" class="btn btn-generate" onclick="generateOrder()">Скачать приказ</button>
+                </div>
+            </form>
         </div>
     </div>
-</div>
 
 <script>
 // Глобальные переменные
@@ -500,7 +499,6 @@ function generateOrder() {
                 warningStudents: warningStudents,
                 reprimandStudents: reprimandStudents,
                 orderDate: orderDate,
-       
             });
 
             try {
