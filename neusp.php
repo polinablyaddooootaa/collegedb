@@ -8,7 +8,8 @@ $sql = "SELECT
     students.id,
     students.name,
     `groups`.group_name as group_name,
-    specialties.name as specialty_name
+    specialties.name as specialty_name,
+    `groups`.course
 FROM students
 INNER JOIN `groups` ON students.group_id = `groups`.id
 INNER JOIN specialties ON `groups`.specialty_id = specialties.id";
@@ -52,171 +53,10 @@ $subjects = $stmt->fetchAll(PDO::FETCH_ASSOC);
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700&display=swap" rel="stylesheet">
 
     <link rel="icon" href="logo2.png" type="image/png">
-    <link rel="stylesheet" href="index.css">
+    <link rel="stylesheet" href="neusp.css">
+    <link rel="stylesheet" href="style.css">
     <style>
-        body, html { margin: 0; font-family: 'Inter', sans-serif; background-color: #f4f7fc; }
-        .wrapper { display: flex; height: 100vh; }
-        .content { margin-left: 260px; flex-grow: 1; padding: 20px; overflow-y: auto; }
-        .top-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; }
-        .date-container { display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 1rem; background-color: white; border-radius: 0.75rem; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1); }
-        .date-text, .time-text { color: #64748b; }
-        .form-container { background-color: white; border-radius: 10px; padding: 20px; box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.1); }
-        .btn-generate { font-size: 1rem; padding: 0.5rem 1.5rem;  background: linear-gradient(135deg, #4946e5 0%, #636ff1 100%); border: none; color: white; }
-        
-        /* Стили для выпадающего списка с поиском */
-        .student-dropdown {
-            position: relative;
-            width: 100%;
-        }
-        .dropdown-input {
-            width: 100%;
-            padding: 8px 12px;
-            border: 1px solid #ced4da;
-            border-radius: 4px;
-            margin-bottom: 5px;
-        }
-        .dropdown-content {
-            display: none;
-            position: absolute;
-            background-color: #fff;
-            width: 100%;
-            max-height: 250px;
-            overflow-y: auto;
-            border: 1px solid #ced4da;
-            border-radius: 6px;
-            z-index: 1000;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-        }
-        .dropdown-content.show {
-            display: block;
-        }
-        .student-item {
-            padding: 8px 12px;
-            cursor: pointer;
-            border-bottom: 1px solid #f0f0f0;
-            transition: background-color 0.2s ease;
-        }
-        .student-item:last-child {
-            border-bottom: none;
-        }
-        .student-item:hover {
-            background-color: #f8f9fa;
-        }
-        .search-input-container {
-            position: relative;
-        }
-        .search-icon {
-            position: absolute;
-            top: 50%;
-            left: 10px;
-            transform: translateY(-50%);
-            color: #6c757d;
-        }
-        .dropdown-search {
-            width: 100%;
-            padding: 8px 12px 8px 35px;
-            border: 1px solid #ced4da;
-            border-radius: 4px;
-        }
-        .form-section {
-            background-color: #f8f9fa;
-            border-radius: 8px;
-            padding: 15px;
-            margin-bottom: 20px;
-        }
-        
-        .form-section h5 {
-            margin-bottom: 15px;
-            color: #4946e5;
-        }
-        
-        .selected-student {
-            margin-top: 10px;
-            padding: 10px;
-            background-color: white;
-            border-radius: 4px;
-            border: 1px solid #dee2e6;
-        }
-        
-        .subject-item {
-            display: flex;
-            align-items: center;
-            margin-bottom: 10px;
-            padding: 8px 12px;
-            background-color: white;
-            border-radius: 6px;
-            border: 1px solid #dee2e6;
-            transition: all 0.2s ease;
-        }
-        
-        .subject-item:hover {
-            background-color: #f8f9fa;
-            border-color: #c6c9cc;
-        }
-        
-        .remove-subject {
-            color: #dc3545;
-            cursor: pointer;
-            margin-left: auto;
-            width: 24px;
-            height: 24px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            border-radius: 50%;
-        }
-        
-        .remove-subject:hover {
-            background-color: #f8d7da;
-        }
-        
-        #preview-container {
-            background-color: white;
-            border-radius: 8px;
-            padding: 20px;
-            margin-top: 20px;
-            border: 1px solid #dee2e6;
-        }
-        
-        /* Дополнительные стили для карточек студентов */
-        .student-card {
-            border: 1px solid #dee2e6;
-            border-radius: 6px;
-            margin-bottom: 8px;
-            transition: all 0.2s ease-in-out;
-            cursor: pointer;
-        }
-
-        .student-card:hover {
-            background-color: #f8f9fa;
-        }
-
-        .student-card.active {
-            border-color: #4946e5;
-            background-color: #f0f0ff;
-        }
-
-        /* Стили для кнопок выбора пола */
-        .btn-group .btn-outline-primary.active {
-            background-color: #4946e5;
-            color: white;
-        }
-
-        .btn-group .btn-outline-danger.active {
-            background-color: #dc3545;
-            color: white;
-        }
-
-        /* Стили для навигации между студентами */
-        #prevStudent, #nextStudent {
-            padding: 0.25rem 0.5rem;
-        }
-
-        /* Бейдж с количеством предметов */
-        .badge.bg-info {
-            background-color: #0dcaf0 !important;
-            font-weight: normal;
-        }
+      
     </style>
 </head>
 <body>
@@ -265,7 +105,8 @@ $subjects = $stmt->fetchAll(PDO::FETCH_ASSOC);
                                 data-id="<?= $student['id'] ?>"
                                 data-name="<?= htmlspecialchars($student['name']) ?>"
                                 data-group="<?= htmlspecialchars($student['group_name']) ?>"
-                                data-specialty="<?= htmlspecialchars($student['specialty_name']) ?>">
+                                data-specialty="<?= htmlspecialchars($student['specialty_name']) ?>"
+                                data-course="<?= htmlspecialchars($student['course']) ?>">
                                 <?= htmlspecialchars($student['name']) ?> (<?= htmlspecialchars($student['group_name']) ?>)
                             </div>
                         <?php endforeach; ?>
@@ -277,24 +118,10 @@ $subjects = $stmt->fetchAll(PDO::FETCH_ASSOC);
             </div>
 
             <div class="row">
-                <div class="col-md-6">
-                    <label class="d-block">Пол текущего студента:</label>
-                    <div class="btn-group mb-3">
-                        <button type="button" id="genderMaleBtn" class="btn btn-outline-primary active">
-                            <i class='bx bx-male-sign'></i> Мужской
-                        </button>
-                        <button type="button" id="genderFemaleBtn" class="btn btn-outline-danger">
-                            <i class='bx bx-female-sign'></i> Женский
-                        </button>
-                    </div>
-                    <select id="studentGender" class="form-select d-none">
-                        <option value="male">Мужской</option>
-                        <option value="female">Женский</option>
-                    </select>
-                </div>
+              
                 <div class="col-md-6">
                     <label for="studentCourse">Курс:</label>
-                    <select id="studentCourse" class="form-select mb-3">
+                    <select id="studentCourse" class="form-select mb-3" disabled>
                         <option value="1">1</option>
                         <option value="2">2</option>
                         <option value="3">3</option>
@@ -349,7 +176,7 @@ $subjects = $stmt->fetchAll(PDO::FETCH_ASSOC);
                     <label for="subjectSelect">Выберите предмет:</label>
                     <select id="subjectSelect" class="form-select">
                         <?php foreach ($subjects as $subject): ?>
-                            <option value="<?= htmlspecialchars($subject['name']) ?>"><?= htmlspecialchars($subject['name']) ?></option>
+                            <option value="<?= htmlspecialchars($subject['name']) ?>"><?= htmlspecialchars($specialty['name']) ?></option>
                         <?php endforeach; ?>
                     </select>
                 </div>
@@ -382,8 +209,7 @@ $subjects = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
             <!-- Кнопки -->
             <div class="d-flex justify-content-end">
-                <button type="button" class="btn btn-outline-primary me-2" id="generateAllBtn">Скачать все уведомления</button>
-                <button type="button" class="btn btn-generate" id="generateBtn">Скачать уведомление</button>
+                <button type="button" class="btn-add btn-primary-custom" id="generateAllBtn">Скачать все уведомления</button>
             </div>
         </form>
     </div>
@@ -452,51 +278,55 @@ $(document).ready(function() {
         return 'male';
     }
 
-// Выбор студента
-$('#studentsList .student-item').on('click', function() {
-    const studentId = $(this).data('id');
-    const studentName = $(this).data('name');
-    const studentGroup = $(this).data('group');
-    const specialty = $(this).data('specialty');
-    
-    // Отладочный вывод
-    console.log('Selected student:', {
-        id: studentId,
-        name: studentName,
-        group: studentGroup,
-        specialty: specialty
-    });
-    
-    const exists = selectedStudents.some(student => student.id === studentId);
-    if (exists) {
-        alert('Этот студент уже добавлен в список');
+    // Выбор студента
+    $('#studentsList .student-item').on('click', function() {
+        const studentId = $(this).data('id');
+        const studentName = $(this).data('name');
+        const studentGroup = $(this).data('group');
+        const specialty = $(this).data('specialty');
+        const course = $(this).data('course');
+        
+        // Отладочный вывод
+        console.log('Selected student:', {
+            id: studentId,
+            name: studentName,
+            group: studentGroup,
+            specialty: specialty,
+            course: course
+        });
+        
+        const exists = selectedStudents.some(student => student.id === studentId);
+        if (exists) {
+            alert('Этот студент уже добавлен в список');
+            $('#studentsList').removeClass('show');
+            $('#studentSearch').val('');
+            return;
+        }
+        
+        const newStudent = {
+            id: studentId,
+            name: studentName,
+            group: studentGroup,
+            specialty: specialty,
+            course: course,
+            gender: guessGender(studentName),
+            subjects: []
+        };
+        
+        selectedStudents.push(newStudent);
+        currentStudentIndex = selectedStudents.length - 1;
+        
+        // Обновляем отображение специальности и курса
+        $('#specialtyDisplay').text(specialty || 'Специальность не указана');
+        $('#studentCourse').val(course);
+        
+        updateStudentsList();
+        showStudentSubjects(currentStudentIndex);
+        updateGenderSelection();
+        
         $('#studentsList').removeClass('show');
         $('#studentSearch').val('');
-        return;
-    }
-    
-    const newStudent = {
-        id: studentId,
-        name: studentName,
-        group: studentGroup,
-        specialty: specialty, // Убедитесь, что это значение не undefined
-        gender: guessGender(studentName),
-        subjects: []
-    };
-    
-    selectedStudents.push(newStudent);
-    currentStudentIndex = selectedStudents.length - 1;
-    
-    // Обновляем отображение специальности
-    $('#specialtyDisplay').text(specialty || 'Специальность не указана');
-    
-    updateStudentsList();
-    showStudentSubjects(currentStudentIndex);
-    updateGenderSelection();
-    
-    $('#studentsList').removeClass('show');
-    $('#studentSearch').val('');
-});
+    });
 
     // Обновление списка выбранных студентов
     function updateStudentsList() {
@@ -541,6 +371,7 @@ $('#studentsList .student-item').on('click', function() {
         
         const student = selectedStudents[currentStudentIndex];
         $('#specialtyDisplay').text(student.specialty);
+        $('#studentCourse').val(student.course);
         
         updateStudentsList();
         showStudentSubjects(index);
@@ -558,10 +389,12 @@ $('#studentsList .student-item').on('click', function() {
             currentStudentIndex = -1;
             clearSubjectsList();
             $('#specialtyDisplay').text('');
+            $('#studentCourse').val('');
         } else {
             currentStudentIndex = Math.min(index, selectedStudents.length - 1);
             showStudentSubjects(currentStudentIndex);
             $('#specialtyDisplay').text(selectedStudents[currentStudentIndex].specialty);
+            $('#studentCourse').val(selectedStudents[currentStudentIndex].course);
         }
         
         updateStudentsList();
@@ -579,6 +412,7 @@ $('#studentsList .student-item').on('click', function() {
         
         updateGenderSelection();
         $('#specialtyDisplay').text(student.specialty);
+        $('#studentCourse').val(student.course);
         
         $('#selectedSubjects').empty();
         
@@ -699,7 +533,7 @@ $('#studentsList .student-item').on('click', function() {
             return;
         }
         
-        const course = $('#studentCourse').val();
+        const course = student.course; // Use the student's course from the group
         const month = $('#assessmentMonth').val();
         const year = $('#assessmentYear').val();
         
@@ -716,7 +550,7 @@ $('#studentsList .student-item').on('click', function() {
     }
 
     // События для обновления предпросмотра при изменении полей
-    $('#notificationDate, #studentCourse, #assessmentMonth, #assessmentYear').on('change', updatePreview);
+    $('#notificationDate, #assessmentMonth, #assessmentYear').on('change', updatePreview);
 
     // Навигация между студентами
     $('#prevStudent, #nextStudent').on('click', function(e) {
@@ -736,6 +570,7 @@ $('#studentsList .student-item').on('click', function() {
         
         const student = selectedStudents[currentStudentIndex];
         $('#specialtyDisplay').text(student.specialty);
+        $('#studentCourse').val(student.course);
     });
 
     // Генерация одного документа
@@ -758,7 +593,7 @@ $('#studentsList .student-item').on('click', function() {
         }
 
         const date = $('#notificationDate').val();
-        const course = $('#studentCourse').val();
+        const course = student.course;
         const month = $('#assessmentMonth').val();
         const year = $('#assessmentYear').val();
 
@@ -804,7 +639,6 @@ $('#studentsList .student-item').on('click', function() {
         }
 
         const date = $('#notificationDate').val();
-        const course = $('#studentCourse').val();
         const month = $('#assessmentMonth').val();
         const year = $('#assessmentYear').val();
         
@@ -821,7 +655,7 @@ $('#studentsList .student-item').on('click', function() {
                 sex: student.gender === 'male' ? 'Ваш сын' : 'Ваша дочь',
                 student: student.name,
                 sex2: student.gender === 'male' ? 'учащийся' : 'учащаяся',
-                course: course,
+                course: student.course,
                 speciality: student.specialty,
                 month: month,
                 year: year,

@@ -1,4 +1,6 @@
+
 <?php
+
 // Подключаем конфигурацию
 include('config.php');
 session_start();
@@ -33,15 +35,10 @@ $students = $stmt->fetchAll(PDO::FETCH_ASSOC);
     <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0-alpha1/js/bootstrap.bundle.min.js"></script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/boxicons@2.1.4/css/boxicons.min.css">
     <link rel="stylesheet" href="index.css">
+
+    <link rel="stylesheet" href="style.css">
     <style>
-        body, html { margin: 0; font-family: 'Inter', sans-serif; background-color: #f4f7fc; }
-        .wrapper { display: flex; height: 100vh; }
-        .content { margin-left: 260px; flex-grow: 1; padding: 20px; overflow-y: auto; }
-        .top-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; }
-        .date-container { display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 1rem; background-color: white; border-radius: 0.75rem; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1); }
-        .date-text, .time-text { color: #64748b; }
-        .form-container { background-color: white; border-radius: 10px; padding: 20px; box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.1); }
-        .btn-generate { font-size: 1rem; padding: 0.5rem 1.5rem;  background: linear-gradient(135deg, #4946e5 0%, #636ff1 100%); border: none; color: white; }
+
          
     </style>
        <link rel="icon" href="logo2.png" type="image/png">
@@ -84,7 +81,7 @@ $students = $stmt->fetchAll(PDO::FETCH_ASSOC);
                 <input type="date" id="issueDate" class="form-control" value="<?php echo date('Y-m-d'); ?>">
             </div>
 
-            <button onclick="generateWord()" class="btn btn-generate">Сгенерировать сертификат</button>
+            <button onclick="generateWord()" class="btn-add btn-primary-custom">Сгенерировать сертификат</button>
         </div>
 
         <div class="form-container">
@@ -104,113 +101,14 @@ $students = $stmt->fetchAll(PDO::FETCH_ASSOC);
                 <input type="date" id="groupIssueDate" class="form-control" value="<?php echo date('Y-m-d'); ?>">
             </div>
 
-            <button onclick="generateGroupCertificates()" class="btn btn-generate">Сгенерировать сертификаты</button>
+            <button onclick="generateGroupCertificates()" class="btn-add btn-primary-custom">Сгенерировать сертификаты</button>
         </div>
     </div>
-
-    <script>
+    
+<script>
         const students = <?php echo json_encode($students); ?>;
-
-        function generateWord() {
-            const studentId = document.getElementById('studentSelect').value;
-            const issueDate = document.getElementById('issueDate').value;
-
-            if (!studentId || !issueDate) {
-                alert("Пожалуйста, выберите ученика и укажите дату выдачи.");
-                return;
-            }
-
-            const student = students.find(s => s.id == studentId);
-
-            // Форматирование даты в российский формат
-            const formattedDate = new Date(issueDate).toLocaleDateString('ru-RU');
-
-            const templateFile = "/serf.docx"; // Укажите путь к шаблону
-
-            fetch(templateFile)
-                .then(response => response.arrayBuffer())
-                .then(data => {
-                    const zip = new PizZip(data);
-                    const doc = new Docxtemplater(zip);
-
-                    doc.setData({
-                        first_name: student.name,
-                        issue_date: formattedDate, // Новый тег для даты выдачи
-                        public_achievements: student.public_achievements || '',
-                        sports_achievements: student.sports_achievements || '',
-                        creative_achievements: student.creative_achievements || '',
-                        research_achievements: student.research_achievements || '',
-                        another_achievements: student.another_achievements || '',
-                        master_achievements: student.master_achievements || ''
-                    });
-
-                    try {
-                        doc.render();
-                    } catch (error) {
-                        console.error(error);
-                        alert("Ошибка при генерации документа.");
-                    }
-
-                    const out = doc.getZip().generate({ type: "blob" });
-                    saveAs(out, "sertifikat.docx");
-                })
-                .catch(error => {
-                    console.error('Ошибка загрузки шаблона:', error);
-                    alert('Ошибка загрузки шаблона: ' + (error.message || error));
-                });
-        }
-
-        function generateGroupCertificates() {
-            const selectedStudentIds = Array.from(document.getElementById('groupStudentSelect').selectedOptions).map(option => option.value);
-            const issueDate = document.getElementById('groupIssueDate').value;
-
-            if (selectedStudentIds.length === 0 || !issueDate) {
-                alert("Пожалуйста, выберите учеников и укажите дату выдачи.");
-                return;
-            }
-
-            const templateFile = "/serf.docx"; // Укажите путь к шаблону
-
-            selectedStudentIds.forEach(studentId => {
-                const student = students.find(s => s.id == studentId);
-
-                // Форматирование даты в российский формат
-                const formattedDate = new Date(issueDate).toLocaleDateString('ru-RU');
-
-                fetch(templateFile)
-                    .then(response => response.arrayBuffer())
-                    .then(data => {
-                        const zip = new PizZip(data);
-                        const doc = new Docxtemplater(zip);
-
-                        doc.setData({
-                            first_name: student.name,
-                            issue_date: formattedDate, // Новый тег для даты выдачи
-                            public_achievements: student.public_achievements || '',
-                            sports_achievements: student.sports_achievements || '',
-                            creative_achievements: student.creative_achievements || '',
-                            research_achievements: student.research_achievements || '',
-                            another_achievements: student.another_achievements || '',
-                            master_achievements: student.master_achievements || ''
-                        });
-
-                        try {
-                            doc.render();
-                        } catch (error) {
-                            console.error(error);
-                            alert("Ошибка при генерации документа.");
-                        }
-
-                        const out = doc.getZip().generate({ type: "blob" });
-                        saveAs(out, student.name + "_sertifikat.docx");
-                    })
-                    .catch(error => {
-                        console.error('Ошибка загрузки шаблона:', error);
-                        alert('Ошибка загрузки шаблона: ' + (error.message || error));
-                    });
-            });
-        }
     </script>
-
+   
+    <script src="js/otchet.js"></script>
 </body>
 </html>

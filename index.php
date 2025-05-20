@@ -15,30 +15,36 @@ function addAction($pdo, $user_id, $action) {
     $stmt->execute([$user_id, $action]);
 }
 
+try {
+    // Получение списка студентов
+    $sql = "SELECT students.id, students.name, students.group_name, 
+                   (CASE WHEN brsm.student_id IS NOT NULL THEN 1 ELSE 0 END) AS brsm,
+                   students.volunteer
+            FROM students 
+            LEFT JOIN brsm ON students.id = brsm.student_id";
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute();
+    $students = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
+    // Получение статистики
+    $total_students = $pdo->query("SELECT COUNT(*) FROM students")->fetchColumn();
+    $total_brsm = $pdo->query("SELECT COUNT(*) FROM brsm")->fetchColumn();
+    $total_volunteers = $pdo->query("SELECT COUNT(*) FROM students WHERE volunteer = 1")->fetchColumn();
+    $total_groups = $pdo->query("SELECT COUNT(DISTINCT group_name) FROM students")->fetchColumn();
+    // Новая метрика: студенты, не состоящие в БРСМ и не волонтеры
+    $total_not_affiliated = $pdo->query("SELECT COUNT(*) FROM students 
+                                         LEFT JOIN brsm ON students.id = brsm.student_id 
+                                         WHERE brsm.student_id IS NULL AND students.volunteer = 0")->fetchColumn();
 
-
-// Получение списка студентов
-$sql = "SELECT students.id, students.name, students.group_name, 
-               (CASE WHEN brsm.student_id IS NOT NULL THEN 1 ELSE 0 END) AS brsm,
-               students.volunteer
-        FROM students 
-        LEFT JOIN brsm ON students.id = brsm.student_id";
-$stmt = $pdo->prepare($sql);
-$stmt->execute();
-$students = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-// Получение последних действий
-$actionsSql = "SELECT actions.id, actions.action, actions.timestamp, users.username,
-               DATE_FORMAT(actions.timestamp, '%Y-%m-%d %H:%i:%s') as formatted_timestamp
-               FROM actions
-               INNER JOIN users ON actions.user_id = users.id
-               ORDER BY actions.timestamp DESC 
-               LIMIT 10";
-$actionsStmt = $pdo->prepare($actionsSql);
-$actionsStmt->execute();
-$actions = $actionsStmt->fetchAll(PDO::FETCH_ASSOC);
+} catch (PDOException $e) {
+    // Логирование ошибки
+    error_log("Database error: " . $e->getMessage());
+    $students = [];
+    $actions = [];
+    $total_students = $total_brsm = $total_volunteers = $total_groups = $total_not_affiliated = 0;
+}
 ?>
+
 <!DOCTYPE html>
 <html lang="ru">
 <head>
@@ -46,22 +52,79 @@ $actions = $actionsStmt->fetchAll(PDO::FETCH_ASSOC);
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.7.0/chart.min.js"></script>
-
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
     <link rel="stylesheet" href="index.css">
+    <link rel="stylesheet" href="style.css">
     <link rel="icon" href="logo2.png" type="image/png">
+    <style>
+        .content {
+            margin-left: 300px;
+        }
+        .metrics-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            padding: 20px 0;
+        }
+        .metrics-scroll {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            width: 100%;
+        }
+        .dashboard-card {
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            padding: 20px;
+            flex: 1;
+            min-width: 200px;
+            max-width: 300px;
+            transition: transform 0.3s ease;
+        }
+        .dashboard-card:hover {
+            transform: translateY(-5px);
+        }
+        .table th {
+            text-align: left;
+        }
+
+        /* Адаптивность для средних экранов (планшеты) */
+        @media (max-width: 768px) {
+            .content {
+                margin-left: 0;
+            }
+            .dashboard-card {
+                min-width: 100%;
+                max-width: 100%;
+            }
+        }
+
+        /* Адаптивность для маленьких экранов (мобильные) */
+        @media (max-width: 576px) {
+            .metrics-container {
+                padding: 10px 0;
+            }
+            .metrics-scroll {
+                gap: 15px;
+            }
+            .dashboard-card {
+                padding: 15px;
+            }
+        }
+    </style>
 </head>
 
 <body>
-    <div class="container">
-    <?php include('sidebar.php'); ?>  <!-- Подключение бокового меню -->
-     
-        <main class="main-content">
+    <div class="wrapper">
+        <?php include('sidebar.php'); ?>
+        <main class="content">
             <header class="top-header">
-            <div class="user-info">
+                <div class="user-info">
                     <i class='bx bx-user'></i>
-                    <span><?php echo htmlspecialchars($_SESSION['username']); ?></span> <!-- Имя пользователя из сессии -->
+                    <span><?php echo htmlspecialchars($_SESSION['username'] ?? 'Гость'); ?></span>
                 </div>
                 <div class="date-container">
                     <i class='bx bx-calendar'></i>
@@ -73,26 +136,76 @@ $actions = $actionsStmt->fetchAll(PDO::FETCH_ASSOC);
                 </div>
             </header>
 
-            <div class="cards-grid">
-                <div class="card action-card">
-                    <h2 class="card-title">Последние действия</h2>
-                    <div class="action-list">
-                        <ul>
-                            <?php foreach ($actions as $action): ?>
-                                <li>
-                                    <span class="action-user"><?php echo htmlspecialchars($action['username']); ?> (сессия)</span>
-                                    <span class="action-timestamp"><?php echo date('d.m.Y H:i:s', strtotime($action['timestamp'])); ?></span>
-                                    <div class="action-detail"><?php echo htmlspecialchars($action['action']); ?></div>
-                                </li>
-                            <?php endforeach; ?>
-                        </ul>
+            <!-- Metrics cards -->
+            <div class="metrics-container">
+                <div class="metrics-scroll">
+                    <div class="dashboard-card">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="text-sm font-medium text-gray-500">Всего студентов</p>
+                                <p class="text-2xl font-bold text-gray-800"><?php echo number_format($total_students); ?></p>
+                                <p class="text-sm text-green-500 flex items-center">
+                                    <i class="fas fa-arrow-up mr-1"></i> Общее количество
+                                </p>
+                            </div>
+                            <div class="p-3 rounded-full bg-blue-100 text-blue-600">
+                                <i class="fas fa-users text-2xl"></i>
+                            </div>
+                        </div>
                     </div>
-                </div>
-                
-                <div class="card">
-                    <h2 class="card-title">Учащиеся</h2>
-                    <div class="chart-container">
-                        <canvas id="studentsChart"></canvas>
+                    <div class="dashboard-card">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="text-sm font-medium text-gray-500">Членов БРСМ</p>
+                                <p class="text-2xl font-bold text-gray-800"><?php echo number_format($total_brsm); ?></p>
+                                <p class="text-sm text-green-500 flex items-center">
+                                    <i class="fas fa-check-circle mr-1"></i> Активные
+                                </p>
+                            </div>
+                            <div class="p-3 rounded-full bg-green-100 text-green-600">
+                                <i class="fas fa-id-card text-2xl"></i>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="dashboard-card">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="text-sm font-medium text-gray-500">Волонтеров</p>
+                                <p class="text-2xl font-bold text-gray-800"><?php echo number_format($total_volunteers); ?></p>
+                                <p class="text-sm text-yellow-500 flex items-center">
+                                    <i class="fas fa-hands-helping mr-1"></i> Активные
+                                </p>
+                            </div>
+                            <div class="p-3 rounded-full bg-yellow-100 text-yellow-600">
+                                <i class="fas fa-hands-helping text-2xl"></i>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="dashboard-card">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="text-sm font-medium text-gray-500">Групп</p>
+                                <p class="text-2xl font-bold text-gray-800"><?php echo $total_groups; ?></p>
+                                <p class="text-sm text-purple-500">Всего групп</p>
+                            </div>
+                            <div class="p-3 rounded-full bg-purple-100 text-purple-600">
+                                <i class="fas fa-layer-group text-2xl"></i>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="dashboard-card">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="text-sm font-medium text-gray-500">Не состоят нигде</p>
+                                <p class="text-2xl font-bold text-gray-800"><?php echo number_format($total_not_affiliated); ?></p>
+                                <p class="text-sm text-red-500 flex items-center">
+                                    <i class="fas fa-times-circle mr-1"></i> Не активны
+                                </p>
+                            </div>
+                            <div class="p-3 rounded-full bg-red-100 text-red-600">
+                                <i class="fas fa-user-times text-2xl"></i>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -110,13 +223,13 @@ $actions = $actionsStmt->fetchAll(PDO::FETCH_ASSOC);
                         </tr>
                     </thead>
                     <tbody>
-                        <?php foreach ($students as $student): ?>
-                        <tr>
+                        <?php foreach ($students as $index => $student): ?>
+                        <tr style="animation-delay: <?php echo $index * 0.05; ?>s">
                             <td><?= htmlspecialchars($student['id']) ?></td>
                             <td><?= htmlspecialchars($student['name']) ?></td>
-                            <td><?= htmlspecialchars($student['group_id']) ?></td>
+                            <td><?= htmlspecialchars($student['group_name'] ?? 'Нет группы') ?></td>
                             <td><span class="status-badge <?= $student['brsm'] ? 'status-yes' : 'status-no' ?>">
-                            <?= $student['brsm'] ? 'Да' : 'Нет' ?>
+                                <?= $student['brsm'] ? 'Да' : 'Нет' ?>
                             </span></td>
                             <td>
                                 <span class="status-badge <?= $student['volunteer'] ? 'status-yes' : 'status-neutral' ?>">
@@ -127,187 +240,19 @@ $actions = $actionsStmt->fetchAll(PDO::FETCH_ASSOC);
                         <?php endforeach; ?>
                     </tbody>
                 </table>
-
-               
-
-    <!-- Модальное окно будет добавлено через JavaScript -->
+            </div>
+        </main>
+    </div>
 
     <script>
-  document.querySelector('.search-bar').addEventListener('input', function(e) {
+        // Поиск по таблице
+        document.querySelector('.search-bar').addEventListener('input', function(e) {
             const searchText = e.target.value.toLowerCase();
             document.querySelectorAll('tbody tr').forEach(row => {
                 const text = row.textContent.toLowerCase();
                 row.style.display = text.includes(searchText) ? '' : 'none';
             });
         });
-
-        // Получаем данные о студентах из PHP
-        const students = <?= json_encode($students) ?>;
-
-        // Конфигурация графика студентов
-        const studentsCtx = document.getElementById('studentsChart').getContext('2d');
-
-        // Создаем градиенты для разных категорий
-        const totalGradient = studentsCtx.createLinearGradient(0, 0, 0, 200);
-        totalGradient.addColorStop(0, 'rgba(59, 130, 246, 0.8)');
-        totalGradient.addColorStop(1, 'rgba(59, 130, 246, 0.2)');
-
-        const brsmGradient = studentsCtx.createLinearGradient(0, 0, 0, 200);
-        brsmGradient.addColorStop(0, 'rgba(139, 92, 246, 0.8)');
-        brsmGradient.addColorStop(1, 'rgba(139, 92, 246, 0.2)');
-
-        const volunteerGradient = studentsCtx.createLinearGradient(0, 0, 0, 200);
-        volunteerGradient.addColorStop(0, 'rgba(236, 72, 153, 0.8)');
-        volunteerGradient.addColorStop(1, 'rgba(236, 72, 153, 0.2)');
-
-        const nonAffiliatedGradient = studentsCtx.createLinearGradient(0, 0, 0, 200);
-        nonAffiliatedGradient.addColorStop(0, 'rgba(156, 163, 175, 0.8)');
-        nonAffiliatedGradient.addColorStop(1, 'rgba(156, 163, 175, 0.2)');
-
-        // Подготавливаем данные для графика
-        const studentsData = {
-            labels: ['Статистика учащихся'],
-            datasets: [
-                {
-                    label: 'Всего учащихся',
-                    data: [students.length],
-                    backgroundColor: totalGradient,
-                    borderColor: 'rgba(59, 130, 246, 0.5)',
-                    borderWidth: 1
-                },
-                {
-                    label: 'БРСМ',
-                    data: [students.filter(s => s.brsm == 1).length],
-                    backgroundColor: brsmGradient,
-                    borderColor: 'rgba(139, 92, 246, 0.5)',
-                    borderWidth: 1
-                },
-                {
-                    label: 'Волонтеры',
-                    data: [students.filter(s => s.volunteer == 1).length],
-                    backgroundColor: volunteerGradient,
-                    borderColor: 'rgba(236, 72, 153, 0.5)',
-                    borderWidth: 1
-                },
-                {
-                    label: 'Не состоят нигде',
-                    data: [students.filter(s => s.brsm == 0 && s.volunteer == 0).length],
-                    backgroundColor: nonAffiliatedGradient,
-                    borderColor: 'rgba(156, 163, 175, 0.5)',
-                    borderWidth: 1
-                }
-            ]
-        };
-
-        // Создаем график студентов
-        const studentsChart = new Chart(studentsCtx, {
-            type: 'bar',
-            data: studentsData,
-            options: {
-    responsive: false,
-    maintainAspectRatio: false,
-    width: 600,  // фиксированная ширина
-    height: 400, // фиксированная высота
-    scales: {
-        y: {
-            beginAtZero: true,
-            grid: {
-                color: 'rgba(200, 200, 200, 0.3)',
-                drawBorder: true,
-            },
-            ticks: {
-                font: {
-                    size: 14
-                },
-                color: 'black'
-            }
-        },
-        x: {
-            grid: {
-                color: 'rgba(200, 200, 200, 0.3)',
-                drawBorder: true,
-            },
-            ticks: {
-                font: {
-                    size: 14
-                },
-                color: 'black'
-            }
-        }
-    },
-    plugins: {
-        legend: {
-            position: 'top'
-        }
-    }
-}
-        });
-
-       // Функция для отображения модального окна со списком студентов
-function showStudentsModal(filteredStudents, categoryTitle) {
-    document.getElementById('modalTitle').textContent = categoryTitle;
-    
-    const modalTableBody = document.getElementById('modalTableBody');
-    modalTableBody.innerHTML = '';
-    
-    filteredStudents.forEach(student => {
-        const row = document.createElement('tr');
-        row.innerHTML = `
-            <td>${student.id}</td>
-            <td>${student.name}</td>
-            <td>${student.group_name}</td>
-        `;
-        modalTableBody.appendChild(row);
-    });
-    
-    document.getElementById('studentsModal').style.display = 'block';
-}
-
-// Закрытие модального окна
-document.querySelector('.close-modal').addEventListener('click', function() {
-    document.getElementById('studentsModal').style.display = 'none';
-});
-
-// Закрытие модального окна при клике вне его области
-window.addEventListener('click', function(event) {
-    const modal = document.getElementById('studentsModal');
-    if (event.target === modal) {
-        modal.style.display = 'none';
-    }
-});
-
-studentsChart.canvas.addEventListener('click', function(event) {
-    const points = studentsChart.getElementsAtEventForMode(event, 'nearest', {intersect: true}, true);
-    console.log(points); // Посмотреть, какие данные приходят при клике
-    if (points.length) {
-        const index = points[0].index;
-        const datasetIndex = points[0].datasetIndex;
-        console.log(index, datasetIndex); // Отладка: проверяем индекс и datasetIndex
-        
-        let filteredStudents = [];
-        let categoryTitle = '';
-
-        // В зависимости от выбранной категории, фильтруем студентов
-        if (datasetIndex === 0) { // Всего учащихся
-            categoryTitle = 'Всего учащихся';
-            filteredStudents = students;
-        } else if (datasetIndex === 1) { // БРСМ
-            categoryTitle = 'БРСМ';
-            filteredStudents = students.filter(s => s.brsm == 1);
-        } else if (datasetIndex === 2) { // Волонтеры
-            categoryTitle = 'Волонтеры';
-            filteredStudents = students.filter(s => s.volunteer == 1);
-        } else if (datasetIndex === 3) { // Не состоят нигде
-            categoryTitle = 'Не состоят нигде';
-            filteredStudents = students.filter(s => s.brsm == 0 && s.volunteer == 0);
-        }
-
-        // Показываем модальное окно с фильтрованными студентами
-        showStudentsModal(filteredStudents, categoryTitle);
-    }
-});
-
-
     </script>
 </body>
 </html>

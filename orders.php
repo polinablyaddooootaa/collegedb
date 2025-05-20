@@ -1,13 +1,34 @@
 <?php
-// Подключаем конфигурацию
 include('config.php');
 session_start();
 
-// Получаем список студентов
-$sql = "SELECT id, name, group_name FROM students";
-$stmt = $pdo->prepare($sql);
-$stmt->execute();
-$students = $stmt->fetchAll(PDO::FETCH_ASSOC);
+// Ensure user is authenticated
+if (!isset($_SESSION['username'])) {
+    header("Location: login.php");
+    exit;
+}
+
+try {
+    // Set PDO to throw exceptions
+    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+
+    // Fetch students
+    $sql_students = "SELECT s.id, s.name, COALESCE(g.group_name, 'Без группы') as group_name 
+                    FROM students s 
+                    LEFT JOIN `groups` g ON s.group_id = g.id";
+    $stmt_students = $pdo->prepare($sql_students);
+    $stmt_students->execute();
+    $students = $stmt_students->fetchAll(PDO::FETCH_ASSOC);
+
+    // Log if no data is returned
+    if (empty($students)) {
+        error_log("No students found in the database.");
+    }
+
+} catch (PDOException $e) {
+    error_log("Database error: " . $e->getMessage());
+    die("Ошибка подключения к базе данных: " . htmlspecialchars($e->getMessage()));
+}
 ?>
 
 <!DOCTYPE html>
@@ -15,146 +36,92 @@ $students = $stmt->fetchAll(PDO::FETCH_ASSOC);
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Генерация приказа о взыскании</title>
-
-    <script src="\libs\pizzip-master\dist\pizzip.js"></script>
-    <script src="\libs\docxtemplater-latest.min.js"></script>
+    <title>Генерация приказа о дисциплинарном взыскании</title>
+    <script src="/libs/pizzip-master/dist/pizzip.js"></script>
+    <script src="/libs/docxtemplater-latest.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0-alpha1/css/bootstrap.min.css" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0-alpha1/js/bootstrap.bundle.min.js"></script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/boxicons@2.1.4/css/boxicons.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700&display=swap" rel="stylesheet">
-
     <link rel="icon" href="logo2.png" type="image/png">
-    <link rel="stylesheet" href="index.css">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="css/orders.css">
     <style>
-        body, html { margin: 0; font-family: 'Inter', sans-serif; background-color: #f4f7fc; }
-        .wrapper { display: flex; min-height: 100vh; }
-        .content { margin-left: 260px; flex-grow: 1; padding: 20px; overflow-y: auto; }
-        .top-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; }
-        .date-container { display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 1rem; background-color: white; border-radius: 0.75rem; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1); }
-        .date-text, .time-text { color: #64748b; }
-        .form-container { background-color: white; border-radius: 10px; padding: 30px; box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.1); margin-bottom: 30px; }
-        .btn-generate { font-size: 1rem; padding: 0.5rem 1.5rem; background: linear-gradient(135deg, #4946e5 0%, #636ff1 100%); border: none; color: white; }
-        .page-title { margin-bottom: 30px; color: #4946e5; }
-        
-        /* Стили для выпадающего списка с поиском */
-        .student-dropdown {
-            position: relative;
-            width: 100%;
-        }
-        .dropdown-input {
-            width: 100%;
-            padding: 8px 12px;
-            border: 1px solid #ced4da;
-            border-radius: 4px;
-            margin-bottom: 5px;
-        }
         .dropdown-content {
             display: none;
             position: absolute;
-            background-color: #fff;
-            width: 100%;
-            max-height: 300px;
+            background-color: white;
+            border: 1px solid #ddd;
+            max-height: 200px;
             overflow-y: auto;
-            border: 1px solid #ced4da;
-            border-radius: 4px;
+            width: 100%;
             z-index: 1000;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
         }
         .dropdown-content.show {
             display: block;
         }
         .student-item {
-            padding: 8px 12px;
+            padding: 8px;
             cursor: pointer;
-            border-bottom: 1px solid #f0f0f0;
+            display: flex;
+            align-items: center;
         }
         .student-item:hover {
-            background-color: #f8f9fa;
-        }
-        .student-checkbox {
-            margin-right: 8px;
-        }
-        .selected-students {
-            margin-top: 10px;
-            padding: 10px;
-            background-color: #f8f9fa;
-            border-radius: 4px;
-            max-height: 150px;
-            overflow-y: auto;
+            background-color: #f5f5f5;
         }
         .selected-tag {
-            display: inline-block;
+            display: inline-flex;
+            align-items: center;
             background-color: #e9ecef;
-            padding: 4px 8px;
-            margin: 2px;
+            padding: 5px 10px;
+            margin: 5px;
             border-radius: 4px;
         }
         .remove-tag {
-            margin-left: 5px;
+            margin-left: 8px;
             cursor: pointer;
-            color: #dc3545;
+            font-weight: bold;
         }
         .search-input-container {
             position: relative;
         }
         .search-icon {
             position: absolute;
-            top: 50%;
             left: 10px;
+            top: 50%;
             transform: translateY(-50%);
             color: #6c757d;
         }
         .dropdown-search {
-            width: 100%;
-            padding: 8px 12px 8px 35px;
-            border: 1px solid #ced4da;
-            border-radius: 4px 4px 0 0;
+            padding-left: 35px;
+        }
+        .error-message {
+            color: red;
+            font-size: 0.9em;
+            margin-top: 5px;
         }
         .punishment-section {
-            background-color: #f8f9fa;
-            border-radius: 8px;
+            border: 1px solid #ddd;
             padding: 15px;
+            border-radius: 5px;
             margin-bottom: 20px;
-        }
-
-        .punishment-section h5 {
-            margin-bottom: 15px;
-            color: #4946e5;
-        }
-
-        .selected-students {
-            border: 1px solid #dee2e6;
-            border-radius: 4px;
-            padding: 10px;
-            background-color: white;
-            margin-top: 10px;
-        }
-        
-        .form-footer {
-            display: flex;
-            justify-content: flex-end;
-            gap: 10px;
-            margin-top: 20px;
-            padding-top: 20px;
-            border-top: 1px solid #dee2e6;
         }
     </style>
 </head>
 <body>
-
-    <?php include('sidebar.php'); ?>  <!-- Подключение бокового меню -->
+    <?php include('sidebar.php'); ?>
     
     <div class="content">
         <header class="top-header">
             <div class="user-info">
                 <i class='bx bx-user'></i>
-                <span><?php echo htmlspecialchars($_SESSION['username']); ?></span> <!-- Имя пользователя из сессии -->
+                <span><?php echo htmlspecialchars($_SESSION['username']); ?></span>
             </div>
             <div class="date-container">
-                <i class="bx bx-calendar"></i>
+                <i class='bx bx-calendar'></i>
                 <span class="date-text"><?php echo date('m/d/Y'); ?></span>
                 <span class="time-text"><?php echo date('H:i'); ?></span>
             </div>
@@ -164,81 +131,22 @@ $students = $stmt->fetchAll(PDO::FETCH_ASSOC);
         </header>
 
         <div class="form-container">
-            <h1 class="page-title">Генерация приказа о взыскании</h1>
+            <h1 class="page-title">Генерация приказа о дисциплинарном взыскании</h1>
             
+            <?php if (empty($students)): ?>
+                <div class="alert alert-warning">Нет студентов в базе данных. Пожалуйста, добавьте студентов.</div>
+            <?php endif; ?>
+
             <form id="generateOrderForm">
-                <!-- Секция для выбора даты приказа -->
                 <div class="form-group mb-4">
                     <label for="orderDate">Дата приказа:</label>
-                    <input type="date" id="orderDate" class="form-control" value="<?php echo date('Y-m-d'); ?>">
+                    <input type="date" id="orderDate" class="form-control" value="<?php echo date('Y-m-d'); ?>" required>
+                    <div id="orderDateError" class="error-message"></div>
                 </div>
 
-                <!-- Секция для замечаний -->
-                <div class="punishment-section mb-4">
-                    <h5>Замечание</h5>
-                    <div class="form-group mb-3">
-                        <div class="student-dropdown" aria-labelledby="warningStudentsLabel">
-                            <div class="search-input-container">
-                                <i class='bx bx-search search-icon'></i>
-                                <input type="text" class="dropdown-search" id="warningStudentSearch" placeholder="Поиск студентов для замечания...">
-                            </div>
-                            <div class="dropdown-content" id="warningStudentsList">
-                                <?php foreach ($students as $student): ?>
-                                    <div class="student-item" data-id="<?= $student['id'] ?>" data-name="<?= htmlspecialchars($student['name']) ?>" data-group="<?= htmlspecialchars($student['group_name']) ?>">
-                                        <input type="checkbox" class="student-checkbox warning-student-checkbox" id="warning_student_<?= $student['id'] ?>">
-                                        <label for="warning_student_<?= $student['id'] ?>"><?= htmlspecialchars($student['name']) ?> (<?= htmlspecialchars($student['group_name']) ?>)</label>
-                                    </div>
-                                <?php endforeach; ?>
-                            </div>
-                            <div class="selected-students" id="selectedWarningStudents">
-                                <!-- Выбранные студенты для замечания -->
-                            </div>
-                        </div>
-                    </div>
-                    <div id="warningHoursContainer" class="form-group mb-3">
-                        <!-- Поля для ввода часов (замечание) -->
-                    </div>
-                </div>
-
-                <!-- Секция для выговоров -->
-                <div class="punishment-section mb-4">
-                    <h5>Выговор</h5>
-                    <div class="form-group mb-3">
-                        <div class="student-dropdown" aria-labelledby="reprimandStudentsLabel">
-                            <div class="search-input-container">
-                                <i class='bx bx-search search-icon'></i>
-                                <input type="text" class="dropdown-search" id="reprimandStudentSearch" placeholder="Поиск студентов для выговора...">
-                            </div>
-                            <div class="dropdown-content" id="reprimandStudentsList">
-                                <?php foreach ($students as $student): ?>
-                                    <div class="student-item" data-id="<?= $student['id'] ?>" data-name="<?= htmlspecialchars($student['name']) ?>" data-group="<?= htmlspecialchars($student['group_name']) ?>">
-                                        <input type="checkbox" class="student-checkbox reprimand-student-checkbox" id="reprimand_student_<?= $student['id'] ?>">
-                                        <label for="reprimand_student_<?= $student['id'] ?>"><?= htmlspecialchars($student['name']) ?> (<?= htmlspecialchars($student['group_name']) ?>)</label>
-                                    </div>
-                                <?php endforeach; ?>
-                            </div>
-                            <div class="selected-students" id="selectedReprimandStudents">
-                                <!-- Выбранные студенты для выговора -->
-                            </div>
-                        </div>
-                    </div>
-                    <div id="reprimandHoursContainer" class="form-group mb-3">
-                        <!-- Поля для ввода часов (выговор) -->
-                    </div>
-                </div>
-
-                <div class="form-group mb-4">
-                    <label for="reasonSelect">Причина взыскания:</label>
-                    <select id="reasonSelect" class="form-select">
-                        <option value="неявки без уважительных причин на учебные занятия">Неявки без уважительных причин на учебные занятия</option>
-                        <option value="систематические опоздания на учебные занятия">Систематические опоздания на учебные занятия</option>
-                    </select>
-                </div>
-
-                <!-- Секция для выбора месяца и года пропусков -->
                 <div class="form-group mb-4">
                     <label for="absenceMonth">Месяц пропуска:</label>
-                    <select id="absenceMonth" class="form-select">
+                    <select id="absenceMonth" class="form-select" required>
                         <option value="январе">Январь</option>
                         <option value="феврале">Февраль</option>
                         <option value="марте">Март</option>
@@ -252,271 +160,290 @@ $students = $stmt->fetchAll(PDO::FETCH_ASSOC);
                         <option value="ноябре">Ноябрь</option>
                         <option value="декабре">Декабрь</option>
                     </select>
+                    <div id="absenceMonthError" class="error-message"></div>
                 </div>
+
                 <div class="form-group mb-4">
                     <label for="absenceYear">Год пропуска:</label>
-                    <input type="number" id="absenceYear" class="form-control" value="2025" min="2000" max="2100">
+                    <input type="number" id="absenceYear" class="form-control" value="2025" min="2000" max="2100" required>
+                    <div id="absenceYearError" class="error-message"></div>
                 </div>
-                
+
+                <div class="punishment-section mb-4">
+                    <h5>Замечание</h5>
+                    <div class="form-group mb-3">
+                        <div class="student-dropdown" aria-labelledby="studentLabel">
+                            <div class="search-input-container">
+                                <i class='bx bx-search search-icon'></i>
+                                <input type="text" class="dropdown-search form-control" id="studentSearch" placeholder="Поиск студентов для замечания...">
+                            </div>
+                            <div class="dropdown-content" id="studentList">
+                                <?php foreach ($students as $student): ?>
+                                    <div class="student-item" 
+                                         data-id="<?= $student['id'] ?>" 
+                                         data-name="<?= htmlspecialchars($student['name']) ?>" 
+                                         data-group="<?= htmlspecialchars($student['group_name']) ?>">
+                                        <input type="checkbox" 
+                                               class="student-checkbox" 
+                                               id="student_<?= $student['id'] ?>">
+                                        <label for="student_<?= $student['id'] ?>">
+                                            <?= htmlspecialchars($student['name']) ?> (<?= htmlspecialchars($student['group_name']) ?>)
+                                        </label>
+                                    </div>
+                                <?php endforeach; ?>
+                            </div>
+                            <div class="selected-students" id="selectedStudents"></div>
+                        </div>
+                        <div id="studentSelectError" class="error-message"></div>
+                    </div>
+                    <div id="hoursContainer" class="form-group mb-3"></div>
+                </div>
+
                 <div class="form-footer">
-                    <button type="button" class="btn btn-secondary" onclick="window.history.back()">Назад</button>
-                    <button type="button" class="btn btn-generate" onclick="generateOrder()">Скачать приказ</button>
+                    <button type="button" class="btn btn-primary" onclick="generateOrder()">Скачать приказ</button>
                 </div>
             </form>
         </div>
     </div>
 
 <script>
-// Глобальные переменные
-let students = [];
-let selectedWarningStudentsIds = new Set();
-let selectedReprimandStudentsIds = new Set();
+// Global variables
+let students = <?php echo json_encode($students); ?>;
+let selectedStudentIds = new Set();
+
+// Function to infer gender from name
+function inferGender(name) {
+    const lastChar = name.trim().slice(-1).toLowerCase();
+    return (lastChar === 'а' || lastChar === 'я') ? 'учащейся' : 'учащемуся';
+}
 
 $(document).ready(function() {
-    students = <?php echo json_encode($students); ?>;
+    // Debug: Log students array
+    console.log('Students loaded:', students);
 
-    // Показать выпадающий список при фокусе
-    $('#warningStudentSearch, #reprimandStudentSearch').on('focus', function() {
-        $(this).closest('.student-dropdown').find('.dropdown-content').addClass('show');
+    // Ensure group_name is always defined
+    students = students.map(student => ({
+        ...student,
+        group_name: student.group_name || 'Без группы'
+    }));
+
+    // Show dropdown on focus or click
+    $('#studentSearch').on('focus click', function(e) {
+        e.stopPropagation();
+        $('#studentList').addClass('show');
     });
 
-    // Закрыть при клике вне списка
+    // Close dropdown when clicking outside
     $(document).on('click', function(e) {
         if (!$(e.target).closest('.student-dropdown').length) {
-            $('.dropdown-content').removeClass('show');
+            $('#studentList').removeClass('show');
         }
     });
 
-    // Показать список при клике на поле поиска
-    $('.dropdown-search').on('click', function() {
-        $(this).closest('.student-dropdown').find('.dropdown-content').addClass('show');
+    // Search students
+    $('#studentSearch').on('input', function() {
+        const searchText = $(this).val().toLowerCase();
+        $('#studentList .student-item').each(function() {
+            const studentName = $(this).data('name').toLowerCase();
+            const studentGroup = $(this).data('group').toLowerCase();
+            const visible = studentName.includes(searchText) || studentGroup.includes(searchText);
+            $(this).toggle(visible);
+        });
     });
 
-    // Функция инициализации поиска и выбора студентов
-    function initializeStudentSelection(searchId, listId, selectedIdsSet, selectedContainerId, hoursContainerId, checkboxClass) {
-        // Поиск студентов
-        $(`#${searchId}`).on('input', function() {
-            const searchText = $(this).val().toLowerCase();
-            $(`#${listId} .student-item`).each(function() {
-                const studentName = $(this).data('name').toLowerCase();
-                const studentGroup = $(this).data('group').toLowerCase();
-                const visible = studentName.includes(searchText) || studentGroup.includes(searchText);
-                $(this).toggle(visible);
-            });
-        });
-
-        // Обработка выбора студента
-        $(`#${listId} .student-item`).on('click', function(e) {
-            if (e.target.type === 'checkbox') return;
-            
-            const checkbox = $(this).find(`.${checkboxClass}`);
-            const studentId = $(this).data('id');
-            const studentName = $(this).data('name');
-            const studentGroup = $(this).data('group');
-            
-            checkbox.prop('checked', !checkbox.prop('checked'));
-            
-            if (checkbox.prop('checked')) {
-                if (!selectedIdsSet.has(studentId)) {
-                    // Удаляем студента из другого списка, если он там есть
-                    const otherSet = selectedIdsSet === selectedWarningStudentsIds ? 
-                        selectedReprimandStudentsIds : selectedWarningStudentsIds;
-                    const otherContainerId = selectedContainerId === 'selectedWarningStudents' ? 
-                        'selectedReprimandStudents' : 'selectedWarningStudents';
-                    
-                    if (otherSet.has(studentId)) {
-                        otherSet.delete(studentId);
-                        $(`#${otherContainerId} .selected-tag[data-id="${studentId}"]`).remove();
-                        updateHoursInputs(otherSet, otherContainerId === 'selectedWarningStudents' ? 
-                            'warningHoursContainer' : 'reprimandHoursContainer');
-                    }
-                    
-                    selectedIdsSet.add(studentId);
-                    $(`#${selectedContainerId}`).append(
-                        `<div class="selected-tag" data-id="${studentId}">
-                            ${studentName} (${studentGroup})
-                            <span class="remove-tag" data-id="${studentId}">&times;</span>
-                        </div>`
-                    );
-                    updateHoursInputs(selectedIdsSet, hoursContainerId);
-                }
-            } else {
-                removeStudent(studentId, selectedIdsSet, selectedContainerId, hoursContainerId);
+    // Handle student selection
+    $('#studentList .student-item').on('click', function(e) {
+        if (e.target.type === 'checkbox') return;
+        
+        const checkbox = $(this).find('.student-checkbox');
+        const studentId = $(this).data('id');
+        const studentName = $(this).data('name');
+        const studentGroup = $(this).data('group');
+        const gender = inferGender(studentName);
+        
+        checkbox.prop('checked', !checkbox.prop('checked'));
+        
+        if (checkbox.prop('checked')) {
+            if (!selectedStudentIds.has(studentId)) {
+                selectedStudentIds.add(studentId);
+                $('#selectedStudents').append(
+                    `<div class="selected-tag" data-id="${studentId}">
+                        ${studentName} (${studentGroup}, ${gender})
+                        <span class="remove-tag" data-id="${studentId}">×</span>
+                    </div>`
+                );
+                updateHoursInputs();
             }
-        });
+        } else {
+            removeStudent(studentId);
+        }
+    });
 
-        // Обработка клика по чекбоксу
-        $(`.${checkboxClass}`).on('change', function() {
-            const studentItem = $(this).closest('.student-item');
-            const studentId = studentItem.data('id');
-            const studentName = studentItem.data('name');
-            const studentGroup = studentItem.data('group');
-            
-            if ($(this).prop('checked')) {
-                if (!selectedIdsSet.has(studentId)) {
-                    selectedIdsSet.add(studentId);
-                    $(`#${selectedContainerId}`).append(
-                        `<div class="selected-tag" data-id="${studentId}">
-                            ${studentName} (${studentGroup})
-                            <span class="remove-tag" data-id="${studentId}">&times;</span>
-                        </div>`
-                    );
-                    updateHoursInputs(selectedIdsSet, hoursContainerId);
-                }
-            } else {
-                removeStudent(studentId, selectedIdsSet, selectedContainerId, hoursContainerId);
+    // Handle checkbox change
+    $('.student-checkbox').on('change', function() {
+        const studentItem = $(this).closest('.student-item');
+        const studentId = studentItem.data('id');
+        const studentName = studentItem.data('name');
+        const studentGroup = studentItem.data('group');
+        const gender = inferGender(studentName);
+        
+        if ($(this).prop('checked')) {
+            if (!selectedStudentIds.has(studentId)) {
+                selectedStudentIds.add(studentId);
+                $('#selectedStudents').append(
+                    `<div class="selected-tag" data-id="${studentId}">
+                        ${studentName} (${studentGroup}, ${gender})
+                        <span class="remove-tag" data-id="${studentId}">×</span>
+                    </div>`
+                );
+                updateHoursInputs();
             }
-        });
+        } else {
+            removeStudent(studentId);
+        }
+    });
+
+    // Function to remove student
+    function removeStudent(studentId) {
+        selectedStudentIds.delete(studentId);
+        $(`#selectedStudents .selected-tag[data-id="${studentId}"]`).remove();
+        updateHoursInputs();
+        $(`#student_${studentId}`).prop('checked', false);
     }
 
-    // Функция удаления студента
-    function removeStudent(studentId, selectedIdsSet, selectedContainerId, hoursContainerId) {
-        selectedIdsSet.delete(studentId);
-        $(`#${selectedContainerId} .selected-tag[data-id="${studentId}"]`).remove();
-        updateHoursInputs(selectedIdsSet, hoursContainerId);
-    }
-
-    // Обновление полей для ввода часов
-    function updateHoursInputs(selectedIdsSet, containerId) {
-        const container = $(`#${containerId}`);
+    // Update hours inputs
+    function updateHoursInputs() {
+        const container = $('#hoursContainer');
         container.empty();
         
-        selectedIdsSet.forEach(studentId => {
+        selectedStudentIds.forEach(studentId => {
             const student = students.find(s => s.id == studentId);
-            
             const studentHoursInput = $(`
                 <div class="form-group mb-3">
-                    <label for="hoursInput_${containerId}_${student.id}">
+                    <label for="hoursInput_${student.id}">
                         ${student.name} (группа ${student.group_name}): Количество часов пропущено:
                     </label>
-                    <input type="number" id="hoursInput_${containerId}_${student.id}" 
-                           class="form-control" min="1">
+                    <input type="number" id="hoursInput_${student.id}" 
+                           class="form-control" min="1" required>
+                    <div id="hoursInput_${student.id}_Error" class="error-message"></div>
                 </div>
             `);
             container.append(studentHoursInput);
         });
     }
 
-    // Обработка удаления по клику на крестик
+    // Handle remove tag
     $(document).on('click', '.remove-tag', function() {
         const studentId = $(this).data('id');
-        const tagContainer = $(this).closest('.selected-students');
-        const containerId = tagContainer.attr('id');
-        const selectedIdsSet = containerId === 'selectedWarningStudents' ? 
-            selectedWarningStudentsIds : selectedReprimandStudentsIds;
-        const hoursContainerId = containerId === 'selectedWarningStudents' ? 
-            'warningHoursContainer' : 'reprimandHoursContainer';
-        
-        removeStudent(studentId, selectedIdsSet, containerId, hoursContainerId);
-        $(`#student_${studentId}`).prop('checked', false);
+        removeStudent(studentId);
     });
-
-    // Инициализация для обоих списков
-    initializeStudentSelection(
-        'warningStudentSearch',
-        'warningStudentsList',
-        selectedWarningStudentsIds,
-        'selectedWarningStudents',
-        'warningHoursContainer',
-        'warning-student-checkbox'
-    );
-
-    initializeStudentSelection(
-        'reprimandStudentSearch',
-        'reprimandStudentsList',
-        selectedReprimandStudentsIds,
-        'selectedReprimandStudents',
-        'reprimandHoursContainer',
-        'reprimand-student-checkbox'
-    );
 });
 
-// Функция генерации приказа
+// Generate order function
 function generateOrder() {
+    // Clear previous errors
+    $('.error-message').text('');
+
+    // Validate inputs
     const orderDate = $('#orderDate').val();
-    const absenceMonth = $('#absenceMonth').val();
-    const absenceYear = $('#absenceYear').val();
-
-    const warningStudents = Array.from(selectedWarningStudentsIds).map((studentId, index) => {
-        const student = students.find(s => s.id == studentId);
-        const hours = $(`#hoursInput_warningHoursContainer_${student.id}`).val();
-
-        if (!hours || hours <= 0) {
-            alert(`Пожалуйста, укажите количество часов пропуска для ${student.name} (замечание)`);
-            throw new Error(`Missing or invalid hours for ${student.name}`);
-        }
-
-        return {
-            number: index + 1,  // Sequential number
-            name: student.name,
-            group: student.group_name,
-            reason: $('#reasonSelect').val(),
-            hours: hours,
-            punishmentType: 'ЗАМЕЧАНИЕ',
-            month: absenceMonth,
-            year: absenceYear
-        };
-    });
-
-    const reprimandStudents = Array.from(selectedReprimandStudentsIds).map((studentId, index) => {
-        const student = students.find(s => s.id == studentId);
-        const hours = $(`#hoursInput_reprimandHoursContainer_${student.id}`).val();
-
-        if (!hours || hours <= 0) {
-            alert(`Пожалуйста, укажите количество часов пропуска для ${student.name} (выговор)`);
-            throw new Error(`Missing or invalid hours for ${student.name}`);
-        }
-
-        return {
-            number: index + 1,  // Sequential number
-            name: student.name,
-            group: student.group_name,
-            reason: $('#reasonSelect').val(),
-            hours: hours,
-            punishmentType: 'ВЫГОВОР',
-            month: absenceMonth,
-            year: absenceYear
-        };
-    });
-
-    if (warningStudents.length === 0 && reprimandStudents.length === 0) {
-        alert("Пожалуйста, выберите хотя бы одного студента");
+    if (!orderDate) {
+        $('#orderDateError').text('Пожалуйста, выберите дату приказа');
         return;
     }
 
-    const templateFile = "order_template.docx";
+    const absenceMonth = $('#absenceMonth').val();
+    if (!absenceMonth) {
+        $('#absenceMonthError').text('Пожалуйста, выберите месяц пропуска');
+        return;
+    }
+
+    const absenceYear = $('#absenceYear').val();
+    if (!absenceYear || absenceYear < 2000 || absenceYear > 2100) {
+        $('#absenceYearError').text('Пожалуйста, введите корректный год');
+        return;
+    }
+
+    // Collect students
+    const selectedStudents = Array.from(selectedStudentIds).map((studentId, index) => {
+        const student = students.find(s => s.id == studentId);
+        if (!student) {
+            alert('Ошибка: один из выбранных студентов не найден');
+            throw new Error('Student not found');
+        }
+        const hours = $(`#hoursInput_${studentId}`).val();
+        if (!hours || hours <= 0) {
+            $(`#hoursInput_${studentId}_Error`).text('Пожалуйста, укажите количество часов (>0)');
+            throw new Error(`Missing or invalid hours for ${student.name}`);
+        }
+        return {
+            number: index + 1,
+            name: student.name,
+            sex: inferGender(student.name),
+            group: student.group_name,
+            hours: hours,
+            month: absenceMonth,
+            year: absenceYear
+        };
+    });
+
+    // Validate students
+    if (selectedStudents.length === 0) {
+        $('#studentSelectError').text('Пожалуйста, выберите хотя бы одного студента');
+        return;
+    }
+
+    const dateObj = new Date(orderDate);
+    const year = dateObj.getFullYear();
+    const formattedDate = dateObj.toLocaleDateString('ru-RU', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric'
+    }).split('.').join('.');
+
+    const templateFile = "prikaz_template.docx";
+
+    console.log('Generating document with data:', {
+        date: formattedDate,
+        year: year,
+        students: selectedStudents
+    });
 
     fetch(templateFile)
         .then(response => {
-            if (!response.ok) throw new Error('Network response was not ok');
+            if (!response.ok) {
+                throw new Error('Network response was not ok: ' + response.statusText);
+            }
             return response.arrayBuffer();
         })
         .then(data => {
             const zip = new PizZip(data);
-            const doc = new Docxtemplater(zip);
+            const doc = new Docxtemplater(zip, {
+                paragraphLoop: true,
+                linebreaks: true
+            });
 
             doc.setData({
-                warningStudents: warningStudents,
-                reprimandStudents: reprimandStudents,
-                orderDate: orderDate,
+                date: formattedDate,
+                year: year,
+                students: selectedStudents
             });
 
             try {
                 doc.render();
             } catch (error) {
-                console.error(error);
-                alert("Ошибка при генерации документа.");
+                console.error('Rendering error:', error);
+                alert("Ошибка при генерации документа: " + error.message);
+                return;
             }
 
             const out = doc.getZip().generate({ type: "blob" });
-            saveAs(out, "prikaz_o_vzyskanii.docx");
+            saveAs(out, `prikaz_${formattedDate}.docx`);
         })
         .catch(error => {
-            console.error('Ошибка загрузки шаблона:', error);
-            alert('Ошибка загрузки шаблона: ' + (error.message || error));
+            console.error('Template loading error:', error);
+            alert('Ошибка загрузки шаблона: ' + error.message);
         });
 }
 </script>
-
 </body>
 </html>

@@ -1,5 +1,4 @@
 <?php
-
 session_start();
 
 // Подключаем конфигурацию и операции с базой данных
@@ -7,12 +6,50 @@ include('config.php');
 require_once 'db_operations.php';
 include('functions.php');
 
-// Получаем список студентов с информацией о группах
+// Количество студентов на странице
+$studentsPerPage = 10;
+
+// Определяем текущую страницу и сортировку
+$currentPage = isset($_GET['page']) ? (int)$_GET['page'] : 1;
+if ($currentPage < 1) $currentPage = 1;
+$sortColumn = isset($_GET['sort']) ? $_GET['sort'] : 'id';
+$sortOrder = isset($_GET['order']) && in_array($_GET['order'], ['asc', 'desc']) ? $_GET['order'] : 'asc';
+
+// Проверяем допустимые столбцы для сортировки
+$allowedSortColumns = ['id', 'name', 'group_name', 'brsm', 'volunteer'];
+if (!in_array($sortColumn, $allowedSortColumns)) {
+    $sortColumn = 'id';
+}
+
+// Маппинг столбцов для SQL-запроса
+$sortColumnMap = [
+    'id' => 'students.id',
+    'name' => 'students.name',
+    'group_name' => 'groups.group_name',
+    'brsm' => '(SELECT COUNT(*) FROM brsm WHERE brsm.student_id = students.id)',
+    'volunteer' => '(SELECT COUNT(*) FROM volunteers WHERE volunteers.student_id = students.id)'
+];
+
+// Получаем общее количество студентов
+$sqlCount = "SELECT COUNT(*) FROM students";
+$stmt = $pdo->prepare($sqlCount);
+$stmt->execute();
+$totalStudents = $stmt->fetchColumn();
+
+// Вычисляем общее количество страниц
+$totalPages = ceil($totalStudents / $studentsPerPage);
+
+// Вычисляем смещение для SQL-запроса
+$offset = ($currentPage - 1) * $studentsPerPage;
+
+// Получаем список студентов с информацией о группах для текущей страницы с учетом сортировки
 $sql = "SELECT students.*, `groups`.group_name 
         FROM students 
         LEFT JOIN `groups` ON students.group_id = `groups`.id
-        ORDER BY students.id";
+        ORDER BY " . $sortColumnMap[$sortColumn] . " " . strtoupper($sortOrder) . " LIMIT :limit OFFSET :offset";
 $stmt = $pdo->prepare($sql);
+$stmt->bindValue(':limit', $studentsPerPage, PDO::PARAM_INT);
+$stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
 $stmt->execute();
 $students = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
@@ -22,7 +59,8 @@ if (isset($_GET['delete_student'])) {
     $sql = "DELETE FROM students WHERE id = ?";
     $stmt = $pdo->prepare($sql);
     $stmt->execute([$id]);
-    header("Location: students.php");
+    $redirectUrl = "students.php?page=$currentPage&sort=$sortColumn&order=$sortOrder";
+    header("Location: $redirectUrl");
     exit;
 }
 
@@ -45,9 +83,6 @@ function getVolunteerStatus($student_id, $pdo) {
     $stmt->execute([$student_id]);
     return $stmt->fetchColumn() > 0 ? 'Активен' : 'Не участвует';
 }
-
-
-
 ?>
 
 <!DOCTYPE html>
@@ -56,7 +91,6 @@ function getVolunteerStatus($student_id, $pdo) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Студенты</title>
-
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/boxicons@2.1.4/css/boxicons.min.css">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0-alpha1/css/bootstrap.min.css" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0-alpha1/js/bootstrap.bundle.min.js"></script>
@@ -64,33 +98,76 @@ function getVolunteerStatus($student_id, $pdo) {
     <link href="https://cdn.jsdelivr.net/npm/select2@4.0.13/dist/css/select2.min.css" rel="stylesheet" />
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/select2@4.0.13/dist/js/select2.min.js"></script>
-    <link rel="stylesheet" href="index.css"> <!-- Подключение стилей -->
-    <link rel="stylesheet" href="style.css"> <!-- Подключение стилей -->
+    <link rel="stylesheet" href="style.css">
     <link rel="icon" href="logo2.png" type="image/png">
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        .pagination-container {
+            margin-top: 20px;
+            display: flex;
+            justify-content: center;
+        }
+        .pagination .page-item.active .page-link {
+            background-color:rgb(63, 20, 133);
+         
+            color: white;
+        }
+        .pagination .page-link {
+            color:rgb(63, 20, 133);
+        }
+        .pagination .page-link:hover {
+            background-color: #e5e7eb;
+            color:rgb(63, 20, 133);
+        }
+        /* Стили для сортировки */
+        .sortable {
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+              color:rgb(63, 20, 133);
+            transition: color 0.3s ease;
+            text-decoration: none; /* Убирает подчеркивание */
+        }
+        .sortable:hover {
+            color:rgb(94, 78, 119);
+        }
+        .sortable a {
+              color:rgb(63, 20, 133);
+        text-decoration: none; /* Убедитесь, что подчеркивание убрано для <a> */
+    }
+    .sortable a:hover {
+        
+        text-decoration: none; /* Убирает подчеркивание при наведении */
+    }
+        .sort-icon {
+            font-size: 1rem;
+            color:rgb(25, 10, 53);
+        }
+        .sort-icon.active {
+            color:rgb(63, 20, 133);
+        }
     
-  
+    </style>
 </head>
 <body>
-
 <?php include('sidebar.php'); ?>
 
 <div class="content">
     <!-- Верхний заголовок -->
     <header class="top-header">
-        <div class="user-info">
-            <i class='bx bx-user'></i>
-            <span><?php echo htmlspecialchars($_SESSION['username']); ?></span>
-        </div>
-        <div class="date-container">
-            <i class='bx bx-calendar'></i>
-            <span class="date-text"><?php echo date('d.m.Y'); ?></span>
-            <i class='bx bx-time' style="margin-left: 10px;"></i>
-            <span class="time-text"><?php echo date('H:i'); ?></span>
-        </div>
-        <div class="search-container">
-            <input type="text" class="search-bar" id="studentSearch" placeholder="Поиск по студенту...">
-        </div>
+         <div class="user-info">
+                    <i class='bx bx-user'></i>
+                    <span><?php echo htmlspecialchars($_SESSION['username'] ?? 'Гость'); ?></span>
+                </div>
+                <div class="date-container">
+                    <i class='bx bx-calendar'></i>
+                    <span class="date-text"><?php echo date('m/d/Y'); ?></span>
+                    <span class="time-text"><?php echo date('H:i'); ?></span>
+                </div>
+                <div class="search-container">
+                    <input type="text" class="search-bar" placeholder="Поиск по студентам">
+                </div>
     </header>
 
     <!-- Контейнер для таблицы студентов -->
@@ -101,10 +178,10 @@ function getVolunteerStatus($student_id, $pdo) {
                 <button class="btn-add btn-primary-custom" data-bs-toggle="modal" data-bs-target="#addStudentModal">
                     <i class='bx bx-plus'></i> Добавить студента
                 </button>
-                <a href="export_excel.php" class="btn-add btn-success-custom" id="exportBtn">
+                <a href="export_excel.php" class="btn-add btn-primary-custom" id="exportBtn">
                     <i class='bx bx-download'></i> Экспорт в Excel
                 </a>
-                <button class="btn-add btn-info-custom" data-bs-toggle="modal" data-bs-target="#importModal">
+                <button class="btn-add btn-primary-custom" data-bs-toggle="modal" data-bs-target="#importModal">
                     <i class='bx bx-upload'></i> Импорт из Excel
                 </button>
             </div>
@@ -114,11 +191,43 @@ function getVolunteerStatus($student_id, $pdo) {
             <table class="table">
                 <thead>
                     <tr>
-                        <th>ID</th>
-                        <th>ФИО</th>
-                        <th>Группа</th>
-                        <th>БРСМ</th>
-                        <th>Волонтер</th>
+                        <?php
+                        // Функция для генерации URL сортировки
+                        function getSortUrl($column, $currentSort, $currentOrder) {
+                            $order = ($currentSort === $column && $currentOrder === 'asc') ? 'desc' : 'asc';
+                            return "students.php?sort=$column&order=$order";
+                        }
+                        ?>
+                        <th>
+                            <a href="<?= getSortUrl('id', $sortColumn, $sortOrder) ?>" class="sortable">
+                                ID
+                                <i class='bx <?= $sortColumn === 'id' ? ($sortOrder === 'asc' ? 'bx-chevron-up' : 'bx-chevron-down') : 'bx-chevron-up' ?> sort-icon <?= $sortColumn === 'id' ? 'active' : '' ?>'></i>
+                            </a>
+                        </th>
+                        <th>
+                            <a href="<?= getSortUrl('name', $sortColumn, $sortOrder) ?>" class="sortable">
+                                ФИО
+                                <i class='bx <?= $sortColumn === 'name' ? ($sortOrder === 'asc' ? 'bx-chevron-up' : 'bx-chevron-down') : 'bx-chevron-up' ?> sort-icon <?= $sortColumn === 'name' ? 'active' : '' ?>'></i>
+                            </a>
+                        </th>
+                        <th>
+                            <a href="<?= getSortUrl('group_name', $sortColumn, $sortOrder) ?>" class="sortable">
+                                Группа
+                                <i class='bx <?= $sortColumn === 'group_name' ? ($sortOrder === 'asc' ? 'bx-chevron-up' : 'bx-chevron-down') : 'bx-chevron-up' ?> sort-icon <?= $sortColumn === 'group_name' ? 'active' : '' ?>'></i>
+                            </a>
+                        </th>
+                        <th>
+                            <a href="<?= getSortUrl('brsm', $sortColumn, $sortOrder) ?>" class="sortable">
+                                БРСМ
+                                <i class='bx <?= $sortColumn === 'brsm' ? ($sortOrder === 'asc' ? 'bx-chevron-up' : 'bx-chevron-down') : 'bx-chevron-up' ?> sort-icon <?= $sortColumn === 'brsm' ? 'active' : '' ?>'></i>
+                            </a>
+                        </th>
+                        <th>
+                            <a href="<?= getSortUrl('volunteer', $sortColumn, $sortOrder) ?>" class="sortable">
+                                Волонтер
+                                <i class='bx <?= $sortColumn === 'volunteer' ? ($sortOrder === 'asc' ? 'bx-chevron-up' : 'bx-chevron-down') : 'bx-chevron-up' ?> sort-icon <?= $sortColumn === 'volunteer' ? 'active' : '' ?>'></i>
+                            </a>
+                        </th>
                         <th>Действия</th>
                     </tr>
                 </thead>
@@ -159,6 +268,29 @@ function getVolunteerStatus($student_id, $pdo) {
                 </tbody>
             </table>
         </div>
+
+        <!-- Пагинация -->
+        <div class="pagination-container">
+            <nav aria-label="Page navigation">
+                <ul class="pagination">
+                    <li class="page-item <?= $currentPage == 1 ? 'disabled' : '' ?>">
+                        <a class="page-link" href="students.php?page=<?= $currentPage - 1 ?>&sort=<?= $sortColumn ?>&order=<?= $sortOrder ?>" aria-label="Previous">
+                            <span aria-hidden="true">«</span>
+                        </a>
+                    </li>
+                    <?php for ($i = 1; $i <= $totalPages; $i++): ?>
+                        <li class="page-item <?= $i == $currentPage ? 'active' : '' ?>">
+                            <a class="page-link" href="students.php?page=<?= $i ?>&sort=<?= $sortColumn ?>&order=<?= $sortOrder ?>"><?= $i ?></a>
+                        </li>
+                    <?php endfor; ?>
+                    <li class="page-item <?= $currentPage == $totalPages ? 'disabled' : '' ?>">
+                        <a class="page-link" href="students.php?page=<?= $currentPage + 1 ?>&sort=<?= $sortColumn ?>&order=<?= $sortOrder ?>" aria-label="Next">
+                            <span aria-hidden="true">»</span>
+                        </a>
+                    </li>
+                </ul>
+            </nav>
+        </div>
     </div>
 </div>
 
@@ -188,7 +320,6 @@ function getVolunteerStatus($student_id, $pdo) {
                             <?php endforeach; ?>
                         </select>
                     </div>
-                    
                     <div class="checkbox-container">
                         <div class="checkbox-item">
                             <div class="form-check">
@@ -203,7 +334,6 @@ function getVolunteerStatus($student_id, $pdo) {
                             </div>
                         </div>
                     </div>
-                    
                     <button type="submit" class="btn btn-modal btn-submit">
                         <i class='bx bx-plus-circle me-2'></i> Добавить студента
                     </button>
@@ -231,35 +361,32 @@ function getVolunteerStatus($student_id, $pdo) {
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Группа</label>
-                        <select class="form-select" id="edit_group_id" name="group_id" required>
-                            <?php foreach ($groups as $group): ?>
-                                <option value="<?= $group['id'] ?>">
-                                    <?= htmlspecialchars($group['group_name']) ?>
-                                </option>
-                            <?php endforeach; ?>
-                        </select>
-                    </div>
-                    
-                    <div class="checkbox-container">
-                        <div class="checkbox-item">
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" id="edit_brsm" name="brsm">
-                                <label class="form-check-label" for="edit_brsm">Состоит в БРСМ</label>
-                            </div>
-                        </div>
-                        <div class="checkbox-item">
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" id="edit_volunteer" name="volunteer">
-                                <label class="form-check-label" for="edit_volunteer">Активный волонтер</label>
-                            </div>
+                    <select class="form-select" id="edit_group_id" name="group_id" required>
+                        <?php foreach ($groups as $group): ?>
+                            <option value="<?= $group['id'] ?>">
+                                <?= htmlspecialchars($group['group_name']) ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div class="checkbox-container">
+                    <div class="checkbox-item">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="edit_brsm" name="brsm">
+                            <label class="form-check-label" for="edit_brsm">Состоит в БРСМ</label>
                         </div>
                     </div>
-                    
-                    <button type="submit" class="btn btn-modal btn-submit">
-                        <i class='bx bx-save me-2'></i> Сохранить изменения
-                    </button>
-                </form>
-            </div>
+                    <div class="checkbox-item">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="edit_volunteer" name="volunteer">
+                            <label class="form-check-label" for="edit_volunteer">Активный волонтер</label>
+                        </div>
+                    </div>
+                </div>
+                <button type="submit" class="btn btn-modal btn-submit">
+                    <i class='bx bx-save me-2'></i> Сохранить изменения
+                </button>
+            </form>
         </div>
     </div>
 </div>
@@ -315,191 +442,17 @@ function getVolunteerStatus($student_id, $pdo) {
         </div>
     </div>
 </div>
+ <script src="js/students.js"></script>
+       <?php
+        if (isset($_SESSION['notification'])) {
+            $notification = $_SESSION['notification'];
+            echo "<script>document.addEventListener('DOMContentLoaded', function() {
+                showNotification('" . addslashes($notification['message']) . "', '" . $notification['type'] . "');
+            });</script>";
+            unset($_SESSION['notification']);
+        }
+        ?>
 
-<script>
-    // Добавляем анимацию для строк таблицы
-    document.addEventListener('DOMContentLoaded', function() {
-        // Задержка появления строк таблицы
-        const rows = document.querySelectorAll('tbody tr');
-        rows.forEach((row, index) => {
-            setTimeout(() => {
-                row.style.opacity = '1';
-            }, index * 50);
-        });
-        
-        // Время на часах в реальном времени
-        setInterval(() => {
-            const now = new Date();
-            const hours = String(now.getHours()).padStart(2, '0');
-            const minutes = String(now.getMinutes()).padStart(2, '0');
-            document.querySelector('.time-text').textContent = hours + ':' + minutes;
-        }, 1000);
-        
-        // Инициализация Select2 для выбора групп
-        if ($.fn.select2) {
-            $('.form-select').select2({
-                width: '100%',
-                dropdownParent: $('.modal-body'),
-                placeholder: "Выберите группу...",
-                allowClear: true
-            });
-        }
-        
-        // Поиск по таблице
-        document.getElementById('studentSearch').addEventListener('input', function(e) {
-            const searchText = e.target.value.toLowerCase();
-            document.querySelectorAll('tbody tr').forEach(row => {
-                const text = row.textContent.toLowerCase();
-                if (text.includes(searchText)) {
-                    row.style.display = '';
-                    // Подсветка найденного текста (опционально)
-                    if (searchText.length > 0) {
-                        row.classList.add('highlight');
-                    } else {
-                        row.classList.remove('highlight');
-                    }
-                } else {
-                    row.style.display = 'none';
-                }
-            });
-        });
-    });
-    
-    // Функция для отображения уведомлений
-    function showNotification(message, type = 'success', title = '') {
-        // Create notification element
-        const notification = document.createElement('div');
-        notification.className = `notification notification-${type}`;
-        
-        // Заголовки по умолчанию в зависимости от типа
-        if (!title) {
-            if (type === 'success') title = 'Успешно!';
-            else if (type === 'error') title = 'Ошибка!';
-            else if (type === 'info') title = 'Информация';
-        }
-        
-        // Set notification content
-        notification.innerHTML = `
-            <div class="notification-icon">
-                ${type === 'success' ? '<i class="bx bx-check"></i>' : 
-                 type === 'error' ? '<i class="bx bx-x"></i>' : 
-                 '<i class="bx bx-info-circle"></i>'}
-            </div>
-            <div class="notification-content">
-                <div class="notification-title">${title}</div>
-                <div class="notification-message">${message}</div>
-            </div>
-            <button class="notification-close">
-                <i class="bx bx-x"></i>
-            </button>
-        `;
-        
-        // Add to DOM
-        document.body.appendChild(notification);
-        
-        // Add event listener to close button
-        notification.querySelector('.notification-close').addEventListener('click', () => {
-            notification.classList.remove('show');
-            setTimeout(() => {
-                notification.remove();
-            }, 500);
-        });
-        
-        // Trigger animation
-        setTimeout(() => {
-            notification.classList.add('show');
-        }, 10);
-        
-        // Auto remove after 5 seconds
-        setTimeout(() => {
-            if (notification.parentNode) {
-                notification.classList.remove('show');
-                setTimeout(() => {
-                    if (notification.parentNode) {
-                        notification.remove();
-                    }
-                }, 500);
-            }
-        }, 5000);
-    }
-    
-    // Код для отображения уведомлений из сессии
-    <?php
-    if (isset($_SESSION['notification'])) {
-        $notification = $_SESSION['notification'];
-        echo "document.addEventListener('DOMContentLoaded', function() {
-            showNotification('" . addslashes($notification['message']) . "', '" . $notification['type'] . "');
-        });";
-        
-        // Удаляем уведомление из сессии после отображения
-        unset($_SESSION['notification']);
-    }
-    ?>
-    
-    // Функция для заполнения формы редактирования
-    document.querySelectorAll('.edit-btn').forEach(button => {
-        button.addEventListener('click', function() {
-            const studentId = this.dataset.id;
-            const studentName = this.dataset.name;
-            const studentGroupId = this.dataset.groupId;
-            const studentBrsm = this.dataset.brsm === '1';
-            const studentVolunteer = this.dataset.volunteer === '1';
-            
-            document.getElementById('edit_id').value = studentId;
-            document.getElementById('edit_name').value = studentName;
-            
-            // Установка значения выпадающего списка групп
-            const groupSelect = document.getElementById('edit_group_id');
-            for (let i = 0; i < groupSelect.options.length; i++) {
-                if (groupSelect.options[i].value === studentGroupId) {
-                    groupSelect.selectedIndex = i;
-                    break;
-                }
-            }
-            
-            // Обновление Select2 если используется
-            if ($.fn.select2) {
-                $('#edit_group_id').trigger('change');
-            }
-            
-            document.getElementById('edit_brsm').checked = studentBrsm;
-            document.getElementById('edit_volunteer').checked = studentVolunteer;
-        });
-    });
-    
-    // Функция подтверждения удаления
-    function confirmDelete(id) {
-        const deleteModal = new bootstrap.Modal(document.getElementById('deleteConfirmModal'));
-        document.getElementById('confirmDeleteBtn').href = `students.php?delete_student=${id}`;
-        deleteModal.show();
-    }
-    
-    // Проверка перед экспортом
-    document.getElementById('exportBtn').addEventListener('click', function(e) {
-        // Проверяем, если таблица пуста
-        let rows = document.querySelectorAll('table tbody tr');
-        if (rows.length === 0) {
-            e.preventDefault(); // Отменяем действие по умолчанию (перенаправление)
-            showNotification('Нет данных для экспорта!', 'error');
-        } else {
-            // Показываем уведомление об успешном экспорте
-            setTimeout(() => {
-                showNotification('Файл успешно экспортирован!', 'success');
-            }, 1000);
-        }
-    });
-    
-    // Эффект наведения для кнопок
-    document.querySelectorAll('.btn-add').forEach(btn => {
-        btn.addEventListener('mouseenter', function() {
-            this.classList.add('pulse');
-        });
-        
-        btn.addEventListener('mouseleave', function() {
-            this.classList.remove('pulse');
-        });
-    });
-</script>
 
 </body>
 </html>

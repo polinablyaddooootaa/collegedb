@@ -24,167 +24,246 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
         header('Location: index.php');
         exit;
     } else {
-        header('Location: register.php?error=user_not_found');
-        exit;
+        $error = "Invalid username or password";
     }
 }
 ?>
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Вход в систему</title>
+    <title>Login - Secure Cloud</title>
     <link rel="icon" href="logo2.png" type="image/png">
     <style>
+        @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap');
+        
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
             font-family: 'Montserrat', sans-serif;
         }
-
+        
         body {
-            margin: 0;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
             height: 100vh;
+            background-color: #5e4a8a;
             display: flex;
-            background: linear-gradient(135deg, #4946e5 0%, #636ff1 100%);
-            color: #fff;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
         }
-
+        
         .login-container {
             display: flex;
+            max-width: 900px;
             width: 100%;
-            height: 100vh;
+            height: 500px;
+            background: #ffffff;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 15px 30px rgba(0,0,0,0.2);
         }
-
-        .brand-section {
+        
+        .login-form {
             flex: 1;
+            padding: 50px;
             display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 2rem;
+            flex-direction: column;
         }
-
-        .form-section {
+        
+        .info-section {
             flex: 1;
+            background: linear-gradient(rgba(94, 74, 138, 0.9), rgba(94, 74, 138, 0.9)), 
+                        url('office_background.jpg') center/cover no-repeat;
+            padding: 50px;
             display: flex;
             flex-direction: column;
             justify-content: center;
-            padding: 2rem;
-            background:rgb(189, 216, 255);
-            color: #1f2937;
-        }
-
-        .logo {
-            font-size: 3rem;
-            font-weight: bold;
+            align-items: center;
             color: #fff;
+            text-align: center;
         }
-
-        .form-container {
-            max-width: 400px;
+        
+        .login-title {
+            font-size: 24px;
+            font-weight: 600;
+            color:rgb(66, 52, 97);
+            margin-bottom: 40px;
+            text-align: center;
+        }
+        
+        .form-group {
+            margin-bottom: 25px;
+            position: relative;
+        }
+        
+        .form-group label {
+            display: block;
+            font-size: 14px;
+            font-weight: 500;
+            color: #666;
+            margin-bottom: 5px;
+            text-transform: uppercase;
+        }
+        
+        .form-group input {
             width: 100%;
-            margin: 0 auto;
-        }
-
-        .input-group {
-            margin-bottom: 1.5rem;
-        }
-
-        input {
-            width: 100%;
-            padding: 1rem;
+            padding: 12px 0;
+            font-size: 16px;
             border: none;
-            border-radius: 8px;
-            background: rgba(255, 255, 255, 0.9);
-            font-size: 1rem;
-            margin-top: 0.5rem;
+            border-bottom: 1px solid #ddd;
+            background: transparent;
+            outline: none;
+            transition: border-color 0.3s;
         }
-
-        button {
-            width: 100%;
-            padding: 1rem;
+        
+        .form-group input:focus {
+            border-bottom: 2px solid #5e4a8a;
+        }
+        
+        .checkbox-container {
+            display: flex;
+            align-items: center;
+            margin-bottom: 25px;
+        }
+        
+        .checkbox-container input {
+            margin-right: 10px;
+        }
+        
+        .checkbox-container label {
+            font-size: 14px;
+            color: #666;
+        }
+        
+        .btn-login {
+            background-color: #5e4a8a;
+            color: white;
             border: none;
-            border-radius: 8px;
-            background: linear-gradient(135deg, #4946e5 0%, #636ff1 100%);
-            color: #fff;
-            font-size: 1rem;
+            border-radius: 4px;
+            padding: 12px;
+            font-size: 16px;
             font-weight: 600;
             cursor: pointer;
-            transition: background 0.3s ease;
+            width: 100%;
+         
+            margin: 0 auto;
+            transition: background-color 0.3s;
         }
-
-     
-
-        .footer-links {
-            display: flex;
-            justify-content: space-between;
-            margin-top: 1rem;
-            font-size: 0.9rem;
+        
+        .btn-login:hover {
+            background-color: #4e3a7a;
         }
-
-        .footer-links a {
-            color: #1f2937;
+        
+        .register-link {
+            margin-top: auto;
+            text-align: center;
+            font-size: 14px;
+            color: #666;
+        }
+        
+        .register-link a {
+            color: #5e4a8a;
             text-decoration: none;
+            font-weight: 500;
         }
-
-        .footer-links a:hover {
+        
+        .register-link a:hover {
             text-decoration: underline;
         }
-
-        .error-message {
-            background: rgba(255, 255, 255, 0.9);
-            color: #dc2626;
-            padding: 1rem;
-            border-radius: 8px;
-            margin-bottom: 1rem;
+        .logo img {
+            width: 400px;
+            margin: 20px auto;
+            display: block;
         }
-
+        
+        .cloud-icon {
+            font-size: 50px;
+            margin-bottom: 20px;
+        }
+        
+        .info-title {
+            font-size: 28px;
+            font-weight: 700;
+            margin-bottom: 10px;
+        }
+        
+        .info-subtitle {
+            font-size: 16px;
+            margin-bottom: 20px;
+            opacity: 0.9;
+        }
+        
+        .info-cta {
+            font-size: 14px;
+            opacity: 0.8;
+        }
+        
+        .error-message {
+            background-color: rgba(220, 53, 69, 0.1);
+            color: #dc3545;
+            padding: 12px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+            font-size: 14px;
+        }
+        
         @media (max-width: 768px) {
             .login-container {
-                flex-direction: column;
+                flex-direction: column-reverse;
+                height: auto;
             }
             
-            .brand-section {
-                padding: 1rem;
-                flex: 0 0 100px;
+            .login-form, .info-section {
+                padding: 30px;
             }
-
-            .form-section {
-                flex: 1;
+            
+            .info-section {
+                padding-bottom: 50px;
             }
         }
     </style>
 </head>
 <body>
     <div class="login-container">
-        <div class="brand-section">
-        <img src="logo1.png" alt="Logo 1">
-        </div>
-        <div class="form-section">
-            <div class="form-container">
-                <?php if (isset($_GET['error']) && $_GET['error'] == 'user_not_found'): ?>
-                    <div class="error-message">
-                        Пользователь не найден. Пожалуйста, зарегистрируйтесь.
-                    </div>
-                <?php endif; ?>
-
-                <form method="POST" action="">
-                    <div class="input-group">
-                        <input type="text" name="username" placeholder="Имя пользователя" required>
-                    </div>
-                    <div class="input-group">
-                        <input type="password" name="password" placeholder="Пароль" required>
-                    </div>
-                    <button type="submit" name="login">Войти</button>
-                    <div class="footer-links">
-                        <a href="register.php">Регистрация</a>
-                        <a href="#">Забыли пароль?</a>
-                    </div>
-                </form>
+        <div class="login-form">
+            <h1 class="login-title">ВХОД</h1>
+            
+            <?php if (isset($error)): ?>
+                <div class="error-message">
+                    <?php echo $error; ?>
+                </div>
+            <?php endif; ?>
+            
+            <form method="POST" action="">
+                <div class="form-group">
+                    <label for="username">ФИО</label>
+                    <input type="text" id="username" name="username" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="password">Пароль</label>
+                    <input type="password" id="password" name="password" required>
+                </div>
+                
+               
+                
+                <button type="submit" name="login" class="btn-login">Вход</button>
+            </form>
+            
+            <div class="register-link">
+                Нет аккаунта? <a href="register.php">Регистрация</a>
             </div>
+        </div>
+        
+        <div class="info-section">
+        <div class="logo">
+        <img src="logo1.png" alt="Logo 1">
+    </div>
+         
+    
+          
         </div>
     </div>
 </body>

@@ -58,7 +58,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt->execute([$student_id, $achievement_date, $achievement, $achievement_type, $id]);
             
             setNotification("Достижение студента \"$student_name\" успешно обновлено", 'success');
-            addAction($pdo, $_SESSION['user_id'], "Добавлено достижение для студента \"$student_name\"");
+            addAction($pdo, $_SESSION['user_id'], "Обновлено достижение для студента \"$student_name\"");
             header("Location: achievements.php");
             exit;
         } catch (PDOException $e) {
@@ -127,196 +127,13 @@ $achievements = $stmt->fetchAll(PDO::FETCH_ASSOC);
     <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0-alpha1/css/bootstrap.min.css" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0-alpha1/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.7.0/chart.min.js"></script>
-    <link rel="stylesheet" href="index.css">
+ 
     <link rel="stylesheet" href="style.css"> <!-- Подключение стилей -->
     <link rel="icon" href="logo2.png" type="image/png">
     
     <style>
-        body, html {
-            margin: 0;
-            font-family: 'Inter', sans-serif;
-            background-color: #f4f7fc;
-        }
-        
-        .wrapper {
-            display: flex;
-            height: 100vh;
-        }
-
-        .content {
-            margin-left: 260px;
-            flex-grow: 1;
-            padding: 0;
-            height: 100vh;
-            overflow: hidden;
-            display: flex;
-            flex-direction: column;
-        }
-/* Стили для уведомлений */
-.notification {
-    position: fixed;
-    bottom: 20px;
-    left: 20px;
-    background-color: white;
-    border-radius: 10px;
-    padding: 15px;
-    min-width: 300px;
-    display: flex;
-    align-items: center;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-    transform: translateY(100px);
-    opacity: 0;
-    transition: all 0.5s ease;
-    z-index: 1050;
-}
-
-.notification.show {
-    transform: translateY(0);
-    opacity: 1;
-}
-
-.notification-success {
-    border-left: 4px solid #28a745;
-}
-
-.notification-error {
-    border-left: 4px solid #dc3545;
-}
-
-.notification-info {
-    border-left: 4px solid #17a2b8;
-}
-
-.notification-icon {
-    margin-right: 15px;
-    font-size: 1.5rem;
-}
-
-.notification-success .notification-icon {
-    color: #28a745;
-}
-
-.notification-error .notification-icon {
-    color: #dc3545;
-}
-
-.notification-info .notification-icon {
-    color: #17a2b8;
-}
-
-.notification-message {
-    font-size: 14px;
-}
-        .fixed-header {
-            position: sticky;
-            top: 0;
-            z-index: 1000;
-            background-color: #f4f7fc;
-            padding: 20px 20px 0 20px;
-        }
-
-        .top-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 1.5rem;
-            padding: 0 20px;
-        }
-     
-        .user-info {
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            padding: 0.5rem 1rem;
-            background-color: white;
-            border-radius: 0.75rem;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-        }
-
-        .date-container {
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            padding: 0.5rem 1rem;
-            background-color: white;
-            border-radius: 0.75rem;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-        }
-
-        .date-text, .time-text {
-            color: #64748b;
-        }
-        .table {
-            table-layout: fixed; /* Фиксированная ширина столбцов */
-        }
-        
-        .search-container input {
-            padding: 0.75rem 1rem;
-            width: 400px;
-            border-radius: 0.75rem;
-            border: 1px solid #e2e8f0;
-        }
-
-        .table-container {
-            background-color: white;
-            border-radius: 10px;
-            padding: 20px;
-            box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.1);
-            height: calc(100vh - 180px);
-            overflow-y: auto;
-            margin: 0 20px 20px 20px;
-            flex-grow: 1;
-        }
-
-        .achievements-header {
-            display: flex;
-            flex-direction: column;
-            align-items: flex-start;
-            margin: 0 20px 1rem 20px;
-            gap: 0.8rem;
-        }
-
-        .achievements-header h2 {
-            font-size: 1.5rem;
-            font-weight: 600;
-            color: #1f2937;
-            margin: 0;
-        }
-        /* Стили для ячейки с достижением */
-        .achievement-cell {
-            max-width: 300px; /* Максимальная ширина */
-            white-space: pre-wrap; /* Сохраняет переносы строк */
-            word-wrap: break-word; /* Перенос длинных слов */
-            min-width: 200px; /* Минимальная ширина */
-        }
-
-        /* Задаем ширину для остальных столбцов */
-        .table th:nth-child(1) { width: 20%; } /* ФИО */
-        .table th:nth-child(2) { width: 10%; } /* Группа */
-        .table th:nth-child(3) { width: 10%; } /* Дата */
-        .table th:nth-child(4),
-        .table td:nth-child(4) {
-            text-align: center;
-            vertical-align: middle;
-        }
-
-        .table th:nth-child(5) { width: 35%; } /* Достижение */
-        .table th:nth-child(6) { width: 10%; } /* Действия */
-        
-        .form-control[name="achievement"], 
-        .form-control[name="edit_achievement"] {
-            min-height: 100px; /* Минимальная высота */
-            resize: vertical; /* Разрешаем вертикальное изменение размера */
-        }
-
-        .table th {
-            background-color: #f1f3f9;
-            text-transform: uppercase;
-            font-size: 0.85rem;
-            font-weight: 600;
-        }
-
-        /* Обновленный стиль для бейджа типа достижения */
+      
+       
         .achievement-type-badge {
             padding: 4px 8px;
             border-radius: 5px;
@@ -336,91 +153,6 @@ $achievements = $stmt->fetchAll(PDO::FETCH_ASSOC);
         .type-professional { background-color: #e8eaf6; color: #3f51b5; }
         .type-other { background-color: #eeeeee; color: #616161; }
 
-        .btn-add {
-            background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
-            border: none;
-            color: white;
-            padding: 0.625rem 1.5rem;
-            border-radius: 0.5rem;
-            font-weight: 500;
-            transition: transform 0.2s;
-        }
-
-        .btn-add:hover {
-            transform: translateY(-1px);
-            background: linear-gradient(135deg, #4f46e5 0%, #6366f1 100%);
-            color: white;
-        }
-
-        .btn-edit {
-            color: #0d6efd;
-            background-color: #e6f0ff;
-            border: none;
-            padding: 0.375rem 0.75rem;
-            border-radius: 0.375rem;
-            transition: all 0.2s;
-        }
-
-        .btn-edit:hover {
-            background-color: #cce0ff;
-            color: #0a58ca;
-        }
-
-        .btn-delete {
-            color: #dc2626;
-            background-color: #fee2e2;
-            border: none;
-            padding: 0.375rem 0.75rem;
-            border-radius: 0.375rem;
-            transition: all 0.2s;
-        }
-
-        .btn-delete:hover {
-            background-color: #fecaca;
-            color: #b91c1c;
-        }
-
-        .table-container::-webkit-scrollbar {
-            width: 6px;
-        }
-
-        .table-container::-webkit-scrollbar-track {
-            background: #f1f1f1;
-            border-radius: 3px;
-        }
-
-        .table-container::-webkit-scrollbar-thumb {
-            background: #c1c1c1;
-            border-radius: 3px;
-        }
-
-        .table-container::-webkit-scrollbar-thumb:hover {
-            background: #a8a8a8;
-        }
-
-        .modal-content {
-            border-radius: 1rem;
-        }
-
-        .modal-header {
-            border-bottom: 2px solid #f3f4f6;
-            padding: 1.25rem;
-        }
-
-        .modal-body {
-            padding: 1.5rem;
-        }
-
-        .form-control, .form-select {
-            border-radius: 0.5rem;
-            padding: 0.625rem;
-            border: 1px solid #e5e7eb;
-        }
-
-        .form-control:focus, .form-select:focus {
-            border-color: #6366f1;
-            box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.1);
-        }
     </style>
 </head>
 <body>
@@ -445,7 +177,7 @@ $achievements = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
             <div class="achievements-header">
                 <h2>Достижения учащихся</h2>
-                <button class="btn btn-add" data-bs-toggle="modal" data-bs-target="#addAchievementModal">
+                <button class="btn-add btn-primary-custom" data-bs-toggle="modal" data-bs-target="#addAchievementModal">
                     <i class='bx bx-plus-circle me-1'></i> Добавить достижение
                 </button>
             </div>
@@ -553,15 +285,13 @@ $achievements = $stmt->fetchAll(PDO::FETCH_ASSOC);
                                 <option value="Достижения в конкурсах профессионального мастерства и технического творчества">Достижения в конкурсах профессионального мастерства</option>
                                 <option value="Другие достижения">Другие достижения</option>
                             </select>
-                                </div>
-                              
+                        </div>
                         <div class="mb-3">
-                            <label for="edit_achievement" class="form-label">Достижение</label>
-                            <textarea class="form-control" id="edit_achievement" name="achievement" rows="3" required></textarea>
+                            <label for="achievement" class="form-label">Достижение</label>
+                            <textarea class="form-control" id="achievement" name="achievement" rows="3" required></textarea>
                         </div>
                         <div class="text-end">
-                            <button type="button" class="btn btn-secondary me-2" data-bs-dismiss="modal">Отмена</button>
-                            <button type="submit" class="btn btn-add">Сохранить изменения</button>
+                            <button type="submit" class="btn btn-modal btn-submit">Сохранить</button>
                         </div>
                     </form>
                 </div>
@@ -569,46 +299,67 @@ $achievements = $stmt->fetchAll(PDO::FETCH_ASSOC);
         </div>
     </div>
 
-    <script>
-        // Функция для отображения уведомлений
-function showNotification(message, type = 'success') {
-    const notification = document.createElement('div');
-    notification.className = `notification notification-${type}`;
-    notification.innerHTML = `
-        <div class="notification-icon">
-            ${type === 'success' ? '<i class="bx bx-check"></i>' : 
-             type === 'error' ? '<i class="bx bx-x"></i>' : 
-             '<i class="bx bx-info-circle"></i>'}
+    <!-- Модальное окно редактирования -->
+    <div class="modal fade" id="editAchievementModal" tabindex="-1" aria-labelledby="editAchievementModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="editAchievementModalLabel">Редактировать достижение</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form method="POST" action="achievements.php">
+                        <input type="hidden" name="achievement_id" id="edit_achievement_id">
+                        <div class="mb-3">
+                            <label for="edit_student_id" class="form-label">Студент</label>
+                            <select class="form-select" id="edit_student_id" name="student_id" required>
+                                <?php foreach ($students as $student): ?>
+                                    <option value="<?= $student['id'] ?>"><?= htmlspecialchars($student['name']) ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label for="edit_achievement_date" class="form-label">Дата</label>
+                            <input type="date" class="form-control" id="edit_achievement_date" name="achievement_date" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="edit_achievement_type" class="form-label">Тип достижения</label>
+                            <select class="form-select" id="edit_achievement_type" name="achievement_type" required>
+                                <option value="Достижения в общественной жизни">Достижения в общественной жизни</option>
+                                <option value="Достижения в спорте">Достижения в спорте</option>
+                                <option value="Достижения в творческой деятельности">Достижения в творческой деятельности</option>
+                                <option value="Достижения в исследовательской деятельности">Достижения в исследовательской деятельности</option>
+                                <option value="Достижения в конкурсах профессионального мастерства и технического творчества">Достижения в конкурсах профессионального мастерства</option>
+                                <option value="Другие достижения">Другие достижения</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label for="edit_achievement" class="form-label">Достижение</label>
+                            <textarea class="form-control" id="edit_achievement" name="achievement" rows="3" required></textarea>
+                        </div>
+                        <input type="hidden" name="edit_achievement" value="1">
+                        <div class="text-end">
+                            <button type="submit" class="btn btn-modal btn-submit">Сохранить изменения</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
         </div>
-        <div class="notification-message">${message}</div>
-    `;
-    
-    document.body.appendChild(notification);
-    
-    setTimeout(() => {
-        notification.classList.add('show');
-    }, 10);
-    
-    setTimeout(() => {
-        notification.classList.remove('show');
-        setTimeout(() => {
-            notification.remove();
-        }, 500);
-    }, 5000);
-}
+    </div>
 
-<?php
-// Проверяем, есть ли уведомление в сессии
-if (isset($_SESSION['notification'])) {
-    $notification = $_SESSION['notification'];
-    echo "document.addEventListener('DOMContentLoaded', function() {
-        showNotification('" . addslashes($notification['message']) . "', '" . $notification['type'] . "');
-    });";
-    
-    // Удаляем уведомление из сессии после отображения
-    unset($_SESSION['notification']);
-}
-?>
+    <?php
+    // Проверяем, есть ли уведомление в сессии
+    if (isset($_SESSION['notification'])) {
+        $notification = $_SESSION['notification'];
+        echo "document.addEventListener('DOMContentLoaded', function() {
+            showNotification('" . addslashes($notification['message']) . "', '" . $notification['type'] . "');
+        });";
+        
+        // Удаляем уведомление из сессии после отображения
+        unset($_SESSION['notification']);
+    }
+    ?>
+    <script>
         // Функция для заполнения формы редактирования
         function fillEditForm(data) {
             document.getElementById('edit_achievement_id').value = data.id;
@@ -618,33 +369,23 @@ if (isset($_SESSION['notification'])) {
             document.getElementById('edit_achievement').value = data.achievement;
         }
 
-        // Обновление времени
-        function updateTime() {
-            const now = new Date();
-            const dateText = now.toLocaleDateString('ru-RU');
-            const timeText = now.toLocaleTimeString('ru-RU');
-            document.querySelector('.date-text').textContent = dateText;
-            document.querySelector('.time-text').textContent = timeText;
+        // Функция отображения уведомлений (предполагается, что она определена в achievements.js)
+        function showNotification(message, type) {
+            const notification = document.createElement('div');
+            notification.className = 'notification ' + (type === 'success' ? 'notification-success' : 'notification-error');
+            notification.innerHTML = `
+                <i class='bx bx-${type === 'success' ? 'check-circle' : 'x-circle'} notification-icon'></i>
+                <span class="notification-message">${message}</span>
+            `;
+            document.body.appendChild(notification);
+
+            setTimeout(() => notification.classList.add('show'), 100);
+            setTimeout(() => {
+                notification.classList.remove('show');
+                setTimeout(() => notification.remove(), 500);
+            }, 3000);
         }
-        
-        // Обновляем время каждую секунду
-        setInterval(updateTime, 1000);
-
-        // Инициализация поиска
-        document.querySelector('.search-bar').addEventListener('input', function(e) {
-            const searchText = e.target.value.toLowerCase();
-            document.querySelectorAll('tbody tr').forEach(row => {
-                const text = row.textContent.toLowerCase();
-                row.style.display = text.includes(searchText) ? '' : 'none';
-            });
-        });
-
-        // Установка текущей даты в поле даты при открытии модального окна добавления
-        document.getElementById('addAchievementModal').addEventListener('show.bs.modal', function () {
-            const today = new Date().toISOString().split('T')[0];
-            document.getElementById('achievement_date').value = today;
-        });
     </script>
-
+    <script src="js/achievements.js"></script>
 </body>
 </html>

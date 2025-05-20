@@ -1,35 +1,75 @@
 <?php
+$selected_group = null;
+
 session_start();
 include('config.php');
-include('functions.php');
-if (isset($_GET['view_group']) && !empty($_GET['view_group'])) {
-    $group_name = $_GET['view_group'];
+include('db_operations.php');
 
-    // Получаем данные о группе
-    $group_sql = "SELECT * FROM `groups` WHERE group_name = ?";
-    $group_stmt = $pdo->prepare($group_sql);
-    $group_stmt->execute([$group_name]);
-    $selected_group = $group_stmt->fetch(PDO::FETCH_ASSOC);
+// Убедимся, что PDO выбрасывает исключения
+$pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-    if ($selected_group) {
-        // Получаем студентов группы
-        $students_sql = "SELECT s.*, 
-                        (SELECT COALESCE(COUNT(*), 0) FROM brsm WHERE student_id = s.id) as brsm_status,
-                        (SELECT COALESCE(COUNT(*), 0) FROM volunteers WHERE student_id = s.id) as volunteer_status
-                        FROM students s 
-                        WHERE s.group_id = ?
-                        ORDER BY s.name";
-        $students_stmt = $pdo->prepare($students_sql);
-        $students_stmt->execute([$selected_group['id']]);
-        $group_students = $students_stmt->fetchAll(PDO::FETCH_ASSOC);
-    } else {
-        setNotification("Группа не найдена.", "error");
+try {
+    // Проверка просмотра группы
+    if (isset($_GET['view_group']) && !empty($_GET['view_group'])) {
+        $group_name = $_GET['view_group'];
+
+        // Получаем данные о группе
+        $group_sql = "SELECT * FROM `groups` WHERE group_name = ?";
+        $group_stmt = $pdo->prepare($group_sql);
+        $group_stmt->execute([$group_name]);
+        $selected_group = $group_stmt->fetch(PDO::FETCH_ASSOC);
+
+        if ($selected_group) {
+            // Получаем студентов группы
+            $students_sql = "SELECT s.*, 
+                            (SELECT COALESCE(COUNT(*), 0) FROM brsm WHERE student_id = s.id) as brsm_status,
+                            (SELECT COALESCE(COUNT(*), 0) FROM volunteers WHERE student_id = s.id) as volunteer_status
+                            FROM students s 
+                            WHERE s.group_id = ?
+                            ORDER BY s.name";
+            $students_stmt = $pdo->prepare($students_sql);
+            $students_stmt->execute([$selected_group['id']]);
+            $group_students = $students_stmt->fetchAll(PDO::FETCH_ASSOC);
+        } else {
+            setNotification("Группа не найдена.", "error");
+            header("Location: groups.php");
+            exit;
+        }
+    }
+
+    // Обработка удаления группы
+    if (isset($_GET['delete_group']) && !empty($_GET['delete_group'])) {
+        $group_id = filter_var($_GET['delete_group'], FILTER_VALIDATE_INT);
+
+        if ($group_id === false) {
+            setNotification("Неверный ID группы.", "error");
+            header("Location: groups.php");
+            exit;
+        }
+
+        // Проверяем, есть ли студенты в группе
+        $check_students_sql = "SELECT COUNT(*) FROM students WHERE group_id = ?";
+        $check_students_stmt = $pdo->prepare($check_students_sql);
+        $check_students_stmt->execute([$group_id]);
+        $student_count = $check_students_stmt->fetchColumn();
+
+        if ($student_count > 0) {
+            setNotification("Нельзя удалить группу, так как в ней есть студенты.", "error");
+            header("Location: groups.php");
+            exit;
+        }
+
+        // Удаляем группу
+        $delete_sql = "DELETE FROM `groups` WHERE id = ?";
+        $delete_stmt = $pdo->prepare($delete_sql);
+        $delete_stmt->execute([$group_id]);
+
+        setNotification("Группа успешно удалена.", "success");
         header("Location: groups.php");
         exit;
-    }
-}
-try {
-    // Проверка, если выбран конкретный студент для просмотра
+        }
+
+    // Проверка просмотра студента
     if (isset($_GET['view_student']) && !empty($_GET['view_student'])) {
         $student_id = $_GET['view_student'];
 
@@ -51,7 +91,7 @@ try {
             $notifications_stmt->execute([$student_id]);
             $notifications = $notifications_stmt->fetchAll(PDO::FETCH_ASSOC);
 
-            // Отображение только профиля студента
+            // Отображение профиля студента
             ?>
             <!DOCTYPE html>
             <html lang="ru">
@@ -61,7 +101,7 @@ try {
                 <title>Профиль студента</title>
                 <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0-alpha1/css/bootstrap.min.css" rel="stylesheet">
                 <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0-alpha1/js/bootstrap.bundle.min.js"></script>
-                <link rel="stylesheet" href="index.css"> <!-- Подключение стилей -->
+                <link rel="stylesheet" href="index.css">
                 <style>
                     body, html {
                         margin: 0;
@@ -85,8 +125,6 @@ try {
                     </a>
                     <h2 class="mb-3">Профиль студента: <?= htmlspecialchars($student['name']) ?></h2>
                     
-                 
-                    
                     <!-- Уведомления -->
                     <div class="card mb-4">
                         <div class="card-header">
@@ -100,12 +138,12 @@ try {
                                             <tr>
                                                 <th>Дата отправки</th>
                                                 <th>Тип</th>
-                                                <th>Содержание</th>
+                                                <th>Действие</th>
                                                 <th>Создано</th>
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            <?php foreach ($notifications as $notification): ?>
+                                            <?php foreach ($notifications as $index => $notification): ?>
                                                 <tr>
                                                     <td><?= htmlspecialchars(date('d.m.Y', strtotime($notification['date_sent']))) ?></td>
                                                     <td>
@@ -121,7 +159,13 @@ try {
                                                         echo $type_label;
                                                         ?>
                                                     </td>
-                                                    <td><?= nl2br(htmlspecialchars($notification['content'])) ?></td>
+                                                    <td>
+                                                        <button type="button" class="btn btn-outline-primary btn-sm" 
+                                                                data-bs-toggle="modal" 
+                                                                data-bs-target="#notificationModal<?= $index ?>">
+                                                            Ознакомиться подробнее
+                                                        </button>
+                                                    </td>
                                                     <td><?= htmlspecialchars($notification['created_by']) ?></td>
                                                 </tr>
                                             <?php endforeach; ?>
@@ -134,10 +178,44 @@ try {
                         </div>
                     </div>
                 </div>
+
+                <!-- Модальные окна для каждого уведомления -->
+                <?php foreach ($notifications as $index => $notification): ?>
+                    <div class="modal fade" id="notificationModal<?= $index ?>" tabindex="-1" aria-labelledby="notificationModalLabel<?= $index ?>" aria-hidden="true">
+                        <div class="modal-dialog">
+                            <div class="modal-content">
+                                <div class="modal-header">
+                                    <h5 class="modal-title" id="notificationModalLabel<?= $index ?>">Детали уведомления</h5>
+                                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                </div>
+                                <div class="modal-body">
+                                    <p><strong>Дата:</strong> <?= htmlspecialchars(date('d.m.Y', strtotime($notification['date_sent']))) ?></p>
+                                    <p><strong>Тип:</strong> 
+                                        <?php 
+                                        switch ($notification['type']) {
+                                            case 'absence':
+                                                echo 'Пропуски';
+                                                break;
+                                            default:
+                                                echo 'Другое';
+                                        }
+                                        ?>
+                                    </p>
+                                    <p><strong>Содержание:</strong></p>
+                                    <p><?= nl2br(htmlspecialchars($notification['content'])) ?></p>
+                                    <p><strong>Создано:</strong> <?= htmlspecialchars($notification['created_by']) ?></p>
+                                </div>
+                                <div class="modal-footer">
+                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Закрыть</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                <?php endforeach; ?>
             </body>
             </html>
             <?php
-            exit; // Прекращаем выполнение, чтобы остальной код не рендерился
+            exit;
         }
     }
 
@@ -163,217 +241,16 @@ try {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Группы</title>
-
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/boxicons@2.1.4/css/boxicons.min.css">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0-alpha1/css/bootstrap.min.css" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0-alpha1/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.7.0/chart.min.js"></script>
-    <link rel="stylesheet" href="index.css"> <!-- Подключение стилей -->
+    <link rel="stylesheet" href="style.css">
     <link rel="icon" href="logo2.png" type="image/png">
-    <style>
-        body, html {
-            margin: 0;
-            font-family: 'Inter', sans-serif;
-            background-color: #f4f7fc;
-        }
-        .wrapper {
-            display: flex;
-            height: 100vh;
-        }
-        /* Стили для уведомлений */
-        .notification {
-            position: fixed;
-            bottom: 20px;
-            left: 20px;
-            background-color: white;
-            border-radius: 10px;
-            padding: 15px;
-            min-width: 300px;
-            display: flex;
-            align-items: center;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-            transform: translateY(100px);
-            opacity: 0;
-            transition: all 0.5s ease;
-            z-index: 1050;
-        }
-
-        .notification.show {
-            transform: translateY(0);
-            opacity: 1;
-        }
-
-        .notification-success {
-            border-left: 4px solid #28a745;
-        }
-
-        .notification-error {
-            border-left: 4px solid #dc3545;
-        }
-
-        .notification-info {
-            border-left: 4px solid #17a2b8;
-        }
-
-        .notification-icon {
-            margin-right: 15px;
-            font-size: 1.5rem;
-        }
-
-        .notification-success .notification-icon {
-            color: #28a745;
-        }
-
-        .notification-error .notification-icon {
-            color: #dc3545;
-        }
-
-        .notification-info .notification-icon {
-            color: #17a2b8;
-        }
-
-        .notification-message {
-            font-size: 14px;
-        }
-        /* Стили для основного контента */
-        .content {
-            margin-left: 260px;
-            flex-grow: 1;
-            padding: 20px;
-            overflow-y: auto;
-        }
-        .top-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 2rem;
-        }
-        .date-container {
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            padding: 0.5rem 1rem;
-            background-color: white;
-            border-radius: 0.75rem;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-        }
-        .date-text, .time-text {
-            color: #64748b;
-        }
-        .table-container {
-            background-color: white;
-            border-radius: 10px;
-            padding: 20px;
-            box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.1);
-            margin-bottom: 20px;
-        }
-        .table th {
-            background-color: #f1f3f9;
-            text-transform: uppercase;
-        }
-        .status-badge {
-            padding: 5px 10px;
-            border-radius: 5px;
-            font-size: 0.9rem;
-            font-weight: bold;
-        }
-        .status-yes {
-            background-color: #d4edda;
-            color: #155724;
-        }
-        .status-no {
-            background-color: #f8d7da;
-            color: #721c24;
-        }
-        .status-neutral {
-            background-color: #fff3cd;
-            color: #856404;
-        }
-        .btn-add {
-            font-size: 1rem;
-            padding: 0.5rem 1.5rem;
-            background: linear-gradient(135deg, #4946e5 0%, #636ff1 100%);
-            border: none;
-            text-decoration: none;
-            border-radius: 15px;
-            margin-bottom: 20px;
-            color: white;
-        }
-        .btn-add:hover {
-            background: linear-gradient(135deg, #636ff1 0%, #4946e5 100%);
-        }
-        .modal-content {
-            border-radius: 1rem;
-            background-color: #ffffff;
-            border: none;
-        }
-
-        .modal-header {
-            border-bottom: 2px solid #f3f4f6;
-            padding: 1.25rem;
-            background-color: #f9fafb;
-        }
-
-        .modal-body {
-            padding: 1.5rem;
-        }
-
-        .form-control, .form-select {
-            border-radius: 0.5rem;
-            padding: 0.625rem;
-            border: 1px solid #e5e7eb;
-            background-color: #fafafa;
-        }
-
-        .form-control:focus, .form-select:focus {
-            border-color: #6366f1;
-            box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.1);
-        }
-
-        .btn-primary {
-            background-color: #6366f1;
-            border-color: #6366f1;
-            font-weight: bold;
-            border-radius: 0.5rem;
-            padding: 0.75rem;
-            transition: background-color 0.3s, transform 0.3s;
-        }
-
-        .btn-close {
-            background-color: transparent;
-            border: none;
-            font-size: 1.25rem;
-            color: #6366f1;
-            transition: color 0.3s;
-        }
-
-        .btn-close:hover {
-            color: #4f46e5;
-        }
-        
-        .back-button {
-            margin-bottom: 15px;
-            display: inline-block;
-        }
-        
-        .group-name {
-            cursor: pointer;
-            color: #4946e5;
-            text-decoration: underline;
-        }
-        
-        .group-name:hover {
-            color: #636ff1;
-        }
-    </style>
 </head>
 <body>
-
 <?php include('sidebar.php'); ?>
-
-    <!-- Основной контент -->
     <div class="content">
-        <!-- Верхний заголовок -->
         <header class="top-header">
             <div class="user-info">
                 <i class='bx bx-user'></i>
@@ -388,55 +265,49 @@ try {
                 <input type="text" class="search-bar" placeholder="Поиск...">
             </div>
         </header>
-   <!-- Значок настроек -->
-<div class="settings-icon">
-    <i class='bx bx-cog' data-bs-toggle="modal" data-bs-target="#settingsModal"></i>
-</div>
-
-<!-- Модальное окно настроек -->
-<div class="modal fade" id="settingsModal" tabindex="-1" aria-labelledby="settingsModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="settingsModalLabel">Настройки</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <form method="POST" action="db_operations.php">
-                    <input type="hidden" name="action" value="add_specialty">
-                    <div class="mb-3">
-                        <label class="form-label">Название специальности</label>
-                        <input type="text" class="form-control" name="specialty_name" required>
+        
+        <div class="modal fade" id="settingsModal" tabindex="-1" aria-labelledby="settingsModalLabel" aria-hidden="true">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="settingsModalLabel">Настройки</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                     </div>
-                    <button type="submit" class="btn btn-primary w-100">Добавить специальность</button>
-                </form>
-                <hr>
-                <form method="POST" action="db_operations.php">
-                    <input type="hidden" name="action" value="add_subject">
-                    <div class="mb-3">
-                        <label class="form-label">Название учебного предмета</label>
-                        <input type="text" class="form-control" name="subject_name" required>
+                    <div class="modal-body">
+                        <form method="POST" action="groups.php">
+                            <input type="hidden" name="action" value="add_specialty">
+                            <div class="mb-3">
+                                <label class="form-label">Название специальности</label>
+                                <input type="text" class="form-control" name="specialty_name" required>
+                            </div>
+                            <button type="submit" class="btn btn-modal btn-submit">Добавить специальность</button>
+                        </form>
+                        <hr>
+                        <form method="POST" action="groups.php">
+                            <input type="hidden" name="action" value="add_subject">
+                            <div class="mb-3">
+                                <label class="form-label">Название учебного предмета</label>
+                                <input type="text" class="form-control" name="subject_name" required>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Специальность</label>
+                                <select class="form-select" name="specialty_id" required>
+                                    <?php
+                                    $specialties = $pdo->query("SELECT * FROM specialties")->fetchAll(PDO::FETCH_ASSOC);
+                                    foreach ($specialties as $specialty) {
+                                        echo "<option value=\"" . htmlspecialchars($specialty['id']) . "\">" . htmlspecialchars($specialty['name']) . "</option>";
+                                    }
+                                    ?>
+                                </select>
+                            </div>
+                            <button type="submit" class="btn btn-modal btn-submit">Добавить учебный предмет</button>
+                        </form>
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label">Специальность</label>
-                        <select class="form-select" name="specialty_id" required>
-                            <?php
-                            $specialties = $pdo->query("SELECT * FROM specialties")->fetchAll(PDO::FETCH_ASSOC);
-                            foreach ($specialties as $specialty) {
-                                echo "<option value=\"" . htmlspecialchars($specialty['id']) . "\">" . htmlspecialchars($specialty['name']) . "</option>";
-                            }
-                            ?>
-                        </select>
-                    </div>
-                    <button type="submit" class="btn btn-primary w-100">Добавить учебный предмет</button>
-                </form>
+                </div>
             </div>
         </div>
-    </div>
-</div>
 
         <?php if ($selected_group): ?>
-            <!-- Отображение студентов выбранной группы -->
             <div class="table-container">
                 <a href="groups.php" class="btn btn-outline-secondary back-button">
                     <i class='bx bx-arrow-back'></i> Назад к списку групп
@@ -447,52 +318,51 @@ try {
                 <?php if (count($group_students) > 0): ?>
                     <table class="table table-hover">
                         <thead>
-                        <tr>
+                            <tr>
                                 <th>ID</th>
                                 <th>ФИО</th>
                                 <th>БРСМ</th>
                                 <th>Волонтер</th>
                                 <th>Действия</th>
                             </tr>
-<!-- В цикле foreach для вывода данных -->
-<td><?= htmlspecialchars($group['course']) ?></td>
                         </thead>
                         <tbody>
-    <?php foreach ($group_students as $student): ?>
-        <tr>
-            <td><?= htmlspecialchars($student['id']) ?></td>
-            <td><?= htmlspecialchars($student['name']) ?></td>
-            <td>
-                <span class="status-badge <?= $student['brsm_status'] > 0 ? 'status-yes' : 'status-no' ?>">
-                    <?= $student['brsm_status'] > 0 ? 'Состоит' : 'Не состоит' ?>
-                </span>
-            </td>
-            <td>
-                <span class="status-badge <?= $student['volunteer_status'] > 0 ? 'status-yes' : 'status-neutral' ?>">
-                    <?= $student['volunteer_status'] > 0 ? 'Активен' : 'Не участвует' ?>
-                </span>
-            </td>
-            <td>
-                <a href="groups.php?view_student=<?= $student['id'] ?>" class="btn btn-outline-primary btn-sm">
-                    <i class='bx bx-user-circle'></i> Профиль
-                </a>
-            </td>
-        </tr>
-    <?php endforeach; ?>
-</tbody>
+                            <?php foreach ($group_students as $student): ?>
+                                <tr>
+                                    <td><?= htmlspecialchars($student['id']) ?></td>
+                                    <td><?= htmlspecialchars($student['name']) ?></td>
+                                    <td>
+                                        <span class="status-badge <?= $student['brsm_status'] > 0 ? 'status-yes' : 'status-no' ?>">
+                                            <?= $student['brsm_status'] > 0 ? 'Состоит' : 'Не состоит' ?>
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <span class="status-badge <?= $student['volunteer_status'] > 0 ? 'status-yes' : 'status-neutral' ?>">
+                                            <?= $student['volunteer_status'] > 0 ? 'Активен' : 'Не участвует' ?>
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <a href="groups.php?view_student=<?= $student['id'] ?>" class="btn btn-outline-primary btn-sm">
+                                            <i class='bx bx-user-circle'></i> Профиль
+                                        </a>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
                     </table>
                 <?php else: ?>
                     <div class="alert alert-info">В этой группе пока нет студентов.</div>
                 <?php endif; ?>
             </div>
         <?php else: ?>
-            <!-- Список групп -->
             <div class="table-container">
                 <h2 class="mb-3">Группы</h2>
-                <button class="btn-add" data-bs-toggle="modal" data-bs-target="#addGroupModal">
+                <button class="btn-add btn-primary-custom" data-bs-toggle="modal" data-bs-target="#addGroupModal">
                     <i class='bx bx-plus-circle me-1'></i> Добавить группу
                 </button>
-                
+                <button class="btn-add btn-primary-custom" data-bs-toggle="modal" data-bs-target="#settingsModal">
+                    <i class='bx bx-plus-circle me-1'></i> Настройки групп
+                </button>
                 <table class="table table-hover">
                     <thead>
                         <tr>
@@ -517,18 +387,18 @@ try {
                                 <td><?= htmlspecialchars($group['specialty_name']) ?></td>
                                 <td><?= htmlspecialchars($group['student_count']) ?></td>
                                 <td>
-                                <button class="btn btn-outline-primary btn-sm" 
-        data-bs-toggle="modal" 
-        data-bs-target="#editGroupModal"
-        data-id="<?= $group['id'] ?>"
-        data-name="<?= htmlspecialchars($group['group_name']) ?>"
-        data-curator="<?= htmlspecialchars($group['curator']) ?>"
-        data-course="<?= htmlspecialchars($group['course']) ?>"
-        data-specialty="<?= htmlspecialchars($group['specialty_name']) ?>">
-    <i class='bx bx-edit-alt'></i>
-</button>
+                                    <button class="btn btn-outline-primary btn-sm" 
+                                            data-bs-toggle="modal" 
+                                            data-bs-target="#editGroupModal"
+                                            data-id="<?= $group['id'] ?>"
+                                            data-name="<?= htmlspecialchars($group['group_name']) ?>"
+                                            data-curator="<?= htmlspecialchars($group['curator']) ?>"
+                                            data-course="<?= htmlspecialchars($group['course']) ?>"
+                                            data-specialty="<?= htmlspecialchars($group['specialty_name']) ?>">
+                                        <i class='bx bx-edit-alt'></i>
+                                    </button>
                                     <a class="btn btn-outline-danger btn-sm" href="groups.php?delete_group=<?= $group['id'] ?>" 
-                                    onclick="return confirm('Вы уверены, что хотите удалить группу?')">
+                                       onclick="return confirm('Вы уверены, что хотите удалить группу?')">
                                         <i class='bx bx-trash'></i>
                                     </a>
                                 </td>
@@ -540,169 +410,153 @@ try {
         <?php endif; ?>
     </div>
 
-<!-- Модальное окно добавления группы -->
-<div class="modal fade" id="addGroupModal" tabindex="-1" aria-labelledby="addGroupModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="addGroupModalLabel">Добавить группу</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <form method="POST" action="db_operations.php">
-                    <input type="hidden" name="action" value="add_group">
-                    <div class="mb-3">
-                        <label class="form-label">Название группы</label>
-                        <input type="text" class="form-control" name="group_name" required>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Куратор</label>
-                        <input type="text" class="form-control" name="curator" required>
-                    </div>
-                    <div class="mb-3">
-    <label class="form-label">Курс</label>
-    <select class="form-select" name="course" required>
-        <option value="1">1 курс</option>
-        <option value="2">2 курс</option>
-        <option value="3">3 курс</option>
-        <option value="4">4 курс</option>
-    </select>
-</div>
-                    <div class="mb-3">
-                        <label class="form-label">Специальность</label>
-                        <select class="form-select" name="specialty_id" required>
-                            <?php
-                            $specialties = $pdo->query("SELECT * FROM specialties")->fetchAll(PDO::FETCH_ASSOC);
-                            foreach ($specialties as $specialty) {
-                                echo "<option value=\"" . htmlspecialchars($specialty['id']) . "\">" . htmlspecialchars($specialty['name']) . "</option>";
-                            }
-                            ?>
-                        </select>
-                    </div>
-                    <button type="submit" class="btn btn-primary w-100">Добавить</button>
-                </form>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Модальное окно редактирования группы -->
-<div class="modal fade" id="editGroupModal" tabindex="-1" aria-labelledby="editGroupModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="editGroupModalLabel">Редактировать группу</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <form method="POST" action="db_operations.php">
-                    <input type="hidden" name="action" value="edit_group">
-                    <input type="hidden" id="edit_id" name="id">
-                    <div class="mb-3">
-                        <label class="form-label">Название группы</label>
-                        <input type="text" class="form-control" id="edit_group_name" name="group_name" required>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Куратор</label>
-                        <input type="text" class="form-control" id="edit_curator" name="curator" required>
-                    </div>
-                    <div class="mb-3">
-    <label class="form-label">Курс</label>
-    <select class="form-select" id="edit_course" name="course" required>
-        <option value="1">1 курс</option>
-        <option value="2">2 курс</option>
-        <option value="3">3 курс</option>
-        <option value="4">4 курс</option>
-    </select>
-</div>
-                    <div class="mb-3">
-                        <label class="form-label">Специальность</label>
-                        <select class="form-select" id="edit_specialty_id" name="specialty_id" required>
-                            <?php
-                            foreach ($specialties as $specialty) {
-                                echo "<option value=\"" . htmlspecialchars($specialty['id']) . "\">" . htmlspecialchars($specialty['name']) . "</option>";
-                            }
-                            ?>
-                        </select>
-                    </div>
-                    <button type="submit" class="btn btn-primary w-100">Сохранить изменения</button>
-                </form>
+    <div class="modal fade" id="addGroupModal" tabindex="-1" aria-labelledby="addGroupModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="addGroupModalLabel">Добавить группу</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form method="POST" action="db_operations.php">
+                        <input type="hidden" name="action" value="add_group">
+                        <div class="mb-3">
+                            <label class="form-label">Название группы</label>
+                            <input type="text" class="form-control" name="group_name" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Куратор</label>
+                            <input type="text" class="form-control" name="curator" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Курс</label>
+                            <select class="form-select" name="course" required>
+                                <option value="1">1 курс</option>
+                                <option value="2">2 курс</option>
+                                <option value="3">3 курс</option>
+                                <option value="4">4 курс</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Специальность</label>
+                            <select class="form-select" name="specialty_id" required>
+                                <?php
+                                $specialties = $pdo->query("SELECT * FROM specialties")->fetchAll(PDO::FETCH_ASSOC);
+                                foreach ($specialties as $specialty) {
+                                    echo "<option value=\"" . htmlspecialchars($specialty['id']) . "\">" . htmlspecialchars($specialty['name']) . "</option>";
+                                }
+                                ?>
+                            </select>
+                        </div>
+                        <button type="submit" class="btn btn-primary w-100">Добавить</button>
+                    </form>
+                </div>
             </div>
         </div>
     </div>
-</div>
 
-<script>
-    // Функция для отображения уведомлений
-    function showNotification(message, type = 'success') {
-        // Create notification element
-        const notification = document.createElement('div');
-        notification.className = `notification notification-${type}`;
-        notification.innerHTML = `
-            <div class="notification-icon">
-                ${type === 'success' ? '<i class="bx bx-check"></i>' : 
-                type === 'error' ? '<i class="bx bx-x"></i>' : 
-                '<i class="bx bx-info-circle"></i>'}
+    <div class="modal fade" id="editGroupModal" tabindex="-1" aria-labelledby="editGroupModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="editGroupModalLabel">Редактировать группу</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form method="POST" action="db_operations.php">
+                        <input type="hidden" name="action" value="edit_group">
+                        <input type="hidden" id="edit_id" name="id">
+                        <div class="mb-3">
+                            <label class="form-label">Название группы</label>
+                            <input type="text" class="form-control" id="edit_group_name" name="group_name" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Куратор</label>
+                            <input type="text" class="form-control" id="edit_curator" name="curator" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Курс</label>
+                            <select class="form-select" id="edit_course" name="course" required>
+                                <option value="1">1 курс</option>
+                                <option value="2">2 курс</option>
+                                <option value="3">3 курс</option>
+                                <option value="4">4 курс</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Специальность</label>
+                            <select class="form-select" id="edit_specialty_id" name="specialty_id" required>
+                                <?php
+                                foreach ($specialties as $specialty) {
+                                    echo "<option value=\"" . htmlspecialchars($specialty['id']) . "\">" . htmlspecialchars($specialty['name']) . "</option>";
+                                }
+                                ?>
+                            </select>
+                        </div>
+                        <button type="submit" class="btn btn-primary w-100">Сохранить изменения</button>
+                    </form>
+                </div>
             </div>
-            <div class="notification-message">${message}</div>
-        `;
-        
-        // Add to DOM
-        document.body.appendChild(notification);
-        
-        // Trigger animation
-        setTimeout(() => {
-            notification.classList.add('show');
-        }, 10);
-        
-        // Auto remove after 5 seconds
-        setTimeout(() => {
-            notification.classList.remove('show');
+        </div>
+    </div>
+
+    <script>
+        function showNotification(message, type = 'success') {
+            const notification = document.createElement('div');
+            notification.className = `notification notification-${type}`;
+            notification.innerHTML = `
+                <div class="notification-icon">
+                    ${type === 'success' ? '<i class="bx bx-check"></i>' : 
+                      type === 'error' ? '<i class="bx bx-x"></i>' : 
+                      '<i class="bx bx-info-circle"></i>'}
+                </div>
+                <div class="notification-message">${message}</div>
+            `;
+            document.body.appendChild(notification);
             setTimeout(() => {
-                notification.remove();
-            }, 500); // Wait for fade out animation to complete
-        }, 5000);
-    }
-
-    // Поиск по таблице
-    document.querySelector('.search-bar').addEventListener('input', function(e) {
-        const searchText = e.target.value.toLowerCase();
-        document.querySelectorAll('tbody tr').forEach(row => {
-            const text = row.textContent.toLowerCase();
-            row.style.display = text.includes(searchText) ? '' : 'none';
-        });
-    });
-
-    // Заполнение формы редактирования
-// Заполнение формы редактирования
-document.querySelectorAll('.btn-outline-primary').forEach(button => {
-    button.addEventListener('click', function() {
-        if (this.dataset.id) {
-            const groupId = this.dataset.id;
-            const groupName = this.dataset.name;
-            const curator = this.dataset.curator;
-            const course = this.dataset.course; // Добавить получение курса
-
-            document.getElementById('edit_id').value = groupId;
-            document.getElementById('edit_group_name').value = groupName;
-            document.getElementById('edit_curator').value = curator;
-            document.getElementById('edit_course').value = course; // Установить значение курса
+                notification.classList.add('show');
+            }, 10);
+            setTimeout(() => {
+                notification.classList.remove('show');
+                setTimeout(() => {
+                    notification.remove();
+                }, 500);
+            }, 5000);
         }
-    });
-});
- // Отображение уведомлений из сессии
- <?php
-           if (isset($_SESSION['notification'])) {
+
+        document.querySelector('.search-bar').addEventListener('input', function(e) {
+            const searchText = e.target.value.toLowerCase();
+            document.querySelectorAll('tbody tr').forEach(row => {
+                const text = row.textContent.toLowerCase();
+                row.style.display = text.includes(searchText) ? '' : 'none';
+            });
+        });
+
+        document.querySelectorAll('.btn-outline-primary').forEach(button => {
+            button.addEventListener('click', function() {
+                if (this.dataset.id) {
+                    const groupId = this.dataset.id;
+                    const groupName = this.dataset.name;
+                    const curator = this.dataset.curator;
+                    const course = this.dataset.course;
+
+                    document.getElementById('edit_id').value = groupId;
+                    document.getElementById('edit_group_name').value = groupName;
+                    document.getElementById('edit_curator').value = curator;
+                    document.getElementById('edit_course').value = course;
+                }
+            });
+        });
+
+        <?php
+        if (isset($_SESSION['notification'])) {
             $notification = $_SESSION['notification'];
             echo "document.addEventListener('DOMContentLoaded', function() {
                 showNotification('" . addslashes($notification['message']) . "', '" . $notification['type'] . "');
             });";
-            
-            // Удаляем уведомление из сессии после отображения
             unset($_SESSION['notification']);
         }
-    ?>
-</script>
-
+        ?>
+    </script>
 </body>
 </html>
